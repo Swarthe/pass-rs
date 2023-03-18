@@ -218,7 +218,7 @@ impl EditCmd {
 
                 let parent = match rec.borrow().parent() {
                     Some(p) => p,
-                    None => err_continue!("cannot remove root group '{p}'")
+                    None => err_continue!("'{p}': cannot remove root group")
                 };
 
                 remove(rec, parent);

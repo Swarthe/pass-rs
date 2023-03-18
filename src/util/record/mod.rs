@@ -314,7 +314,7 @@ impl Display for Error {
             NotFound =>
                 write!(f, "record not found"),
             MultipleMatches =>
-                write!(f, "multiple matches found for record"),
+                write!(f, "multiple matches found"),
             AlreadyExists =>
                 write!(f, "record already exists"),
         }
