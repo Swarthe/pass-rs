@@ -1,0 +1,37 @@
+[package]
+name = "pass-rs"
+description = "A secure encrypted data manager"
+version = "0.1.0"
+license = "GPL-3.0-or-later"
+keywords = ["encryption", "password-manager", "command-line", "rust"]
+categories = ["command-line-utilities", "cryptography", "data-structures"]
+authors = ["Emil Overbeck <emil.a.overbeck at gmail dot com>"]
+readme = "README.md"
+repository = "https://github.com/Swarthe/pass-rs"
+documentation = "https://github.com/Swarthe/pass-rs"
+homepage = "https://github.com/Swarthe/pass-rs"
+edition = "2021"
+
+[[bin]]
+name = "pass"
+path = "src/main.rs"
+
+[dependencies]
+lexopt = "0.2.1"
+colored = "2.0.0"
+xdg = "2.4.1"
+path-absolutize = "3.0.14"
+nix = "0.25.0"
+rand = "0.8.5"
+rust-argon2 = "1.0.0"
+chacha20poly1305 = { version = "0.10.1", features = ["stream"] }
+serde = { version = "1.0.150", features = ["derive"] }
+ron = "0.8.0"
+sublime_fuzzy = "0.7.0"
+arboard = { version = "3.2.0", default-features = false }
+shell-words = "1.1.0"
+
+[profile.release]
+strip = true
+# TODO: use once available
+#oom = "panic"   # Allows destructors for sensitive data to run on OOM.

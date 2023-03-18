@@ -1,0 +1,35 @@
+// Password is "4321".
+
+Group(
+    name: "Accounts",
+    members: [
+        Group(
+            name: "Bar",
+            members: [
+                Item(
+                    name: "note",
+                    value: "I have something to say.",
+                    metadata: {},
+                ),
+                Item(
+                    name: "password",
+                    value: "Doveryay, no proveryay",
+                    metadata: {},
+                ),
+            ],
+            metadata: {},
+        ),
+        Group(
+            name: "Foo",
+            members: [
+                Item(
+                    name: "password",
+                    value: "\\o/",
+                    metadata: {},
+                ),
+            ],
+            metadata: {},
+        ),
+    ],
+    metadata: {},
+)
