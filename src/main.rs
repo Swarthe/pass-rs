@@ -110,7 +110,7 @@ impl ReadCmd {
 
             Clip(path, mk, time) => {
                 // It doesn't matter if this is the parent or child process,
-                // because it is about to exit without performing IO.
+                // because it is about to exit without further effects.
                 let _ = ClipTarget::new(path, mk, time)
                     .clip(&data)?;
             }

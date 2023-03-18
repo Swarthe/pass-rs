@@ -4,9 +4,9 @@ use Status::{Running, Stopped, Aborted, Clipped};
 
 use cmd::{Cmd, ReadCmd, EditCmd, MetaCmd, OptVal};
 
-use crate::{input, err, info, warn};
+use crate::{input, err, warn};
 
-use crate::{error, output, serial};
+use crate::{error, output};
 
 use crate::find::MatchKind;
 
@@ -158,14 +158,14 @@ impl ReadCmd {
         use ReadCmd::*;
         use output::{PrintTarget, ClipTarget};
 
-        let conf = &tui.conf;
+        let Config { match_kind, clip_time } = tui.conf;
 
         match self {
-            Show(paths) => PrintTarget::new(paths, conf.match_kind)
+            Show(paths) => PrintTarget::new(paths, match_kind)
                 .print_names(data),
 
             Clip(path) => {
-                let proc = ClipTarget::new(path, conf.match_kind, conf.clip_time)
+                let proc = ClipTarget::new(path, match_kind, clip_time)
                     .clip(data)?;
 
                 // The clipboard should exit immediately without performing IO.
@@ -174,14 +174,14 @@ impl ReadCmd {
                 }
             }
 
-            List(paths) => match paths {
-                Some(paths) => PrintTarget::new(paths, conf.match_kind)
+            List(opt_paths) => match opt_paths {
+                Some(paths) => PrintTarget::new(paths, match_kind)
                     .print_lists(data),
                 None => println!("{}", Record::display_list(data))
             }
 
-            Tree(paths) => match paths {
-                Some(paths) => PrintTarget::new(paths, conf.match_kind)
+            Tree(opt_paths) => match opt_paths {
+                Some(paths) => PrintTarget::new(paths, match_kind)
                     .print_trees(data),
                 None => println!("{}", Record::display_tree(data))
             }

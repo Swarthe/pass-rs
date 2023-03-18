@@ -56,21 +56,21 @@ impl<T: Erase> Drop for Secret<T> {
     /// Erases the data contained within the `Secret`.
     ///
     /// The data's destructor is called afterwards as usual.
-	fn drop(&mut self) {
+    fn drop(&mut self) {
         self.0.erase();
-	}
+    }
 }
 
 impl<T: Erase> Deref for Secret<T> {
-	type Target = T;
+    type Target = T;
 
     /// Returns a reference into the given `Secret`.
     ///
     /// Improper copying of the referred-to data may expose it, by creating a
     /// copies that aren't protected by a `Secret`.
-	fn deref(&self) -> &Self::Target {
-		&self.0
-	}
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl<T: Erase> DerefMut for Secret<T> {
@@ -81,9 +81,9 @@ impl<T: Erase> DerefMut for Secret<T> {
     /// example, this may happen if [`Vec::shrink_to`] is called on a [`Vec`]
     /// within the `Secret`. It is the responsibility of the caller that this
     /// does not happen.
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.0
-	}
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 impl<T: Erase, U> AsRef<U> for Secret<T>
