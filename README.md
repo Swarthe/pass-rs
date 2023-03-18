@@ -4,6 +4,32 @@
 as a password manager, but its features permit other use cases. Contributions
 are welcome, especially in the form of security testing.
 
+```
+$ pass -t
+:: Password:
+Accounts
+├── Bar
+│   ├── note
+│   └── password
+└── Foo
+    └── password
+
+$ pass foo bar
+:: Password:
+\o/
+Doveryay, no proveryay
+
+$ pass -M
+:: Password:
+> setopt match-kind exact
+> mkgrp Baz
+> mkitm Baz.username
+:: Value: Louise Michel
+> show Bar.password
+Doveryay, no proveryay
+> exit
+```
+
 ## Installation
 
 ```
