@@ -106,7 +106,7 @@ impl ReadCmd {
 
         match self {
             Show(paths, mk) => PrintTarget::new(paths, mk)
-                .print_names(&data),
+                .print_values(&data),
 
             Clip(path, mk, time) => {
                 // It doesn't matter if this is the parent or child process,

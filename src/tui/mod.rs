@@ -162,7 +162,7 @@ impl ReadCmd {
 
         match self {
             Show(paths) => PrintTarget::new(paths, match_kind)
-                .print_names(data),
+                .print_values(data),
 
             Clip(path) => {
                 let proc = ClipTarget::new(path, match_kind, clip_time)

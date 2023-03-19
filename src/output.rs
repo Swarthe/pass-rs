@@ -32,11 +32,10 @@ impl PrintTarget {
         Self { paths, mk }
     }
 
-    pub fn print_names(self, data: &Node<Record>) {
+    pub fn print_values(self, data: &Node<Record>) {
         for p in self.paths {
             match p.find_item_or_default_in(data, self.mk) {
                 Ok(item) => println!("{}", item.borrow().value()),
-                // If a record is not found, inform the user and continue.
                 Err(e) => Error::from(e).print_full()
             }
         }
@@ -64,6 +63,11 @@ impl ClipTarget {
         Self { path, mk, time }
     }
 
+    /// Finds the target in `data` and copies it to the clipboard.
+    ///
+    /// Forks the process into a parent a child, the latter of which is
+    /// responsible for preserving the clipboard. See [`clip_timed`] for more
+    /// details.
     pub fn clip(self, data: &Node<Record>) -> Result<Process> {
         let item = self.path.find_item_or_default_in(data, self.mk)?;
         let item = item.borrow();
@@ -78,10 +82,12 @@ impl ClipTarget {
 ///
 /// This operation is non-blocking for the calling process, as an identical
 /// child process is started to preserve the clipboard as long as necessary
-/// before continuing execution.
+/// before continuing execution. The child process' memory is secured using
+/// [`proc::secure_mem`].
 ///
 /// Returns a value indicating whether the current process is the child or
-/// parent. An expected usage pattern is to immediately end the child process.
+/// parent. An expected usage pattern is to immediately end the child process
+/// without it performing any IO.
 pub fn clip_timed(text: &str, time: Duration) -> Result<Process> {
     use crate::with_secured_mem;
     use clip::Clipboard;
@@ -109,9 +115,10 @@ pub fn clip_timed(text: &str, time: Duration) -> Result<Process> {
     Ok(proc)
 }
 
-/// XXX: applies `f` to each of `paths`, and prints results spaced out with
-/// empty line
-/// if error is encountered, prints and continues
+/// Applies 'f' to each element of `paths` and prints the result separated with
+/// empty lines.
+///
+/// If `f` returns an error, it is printed and execution continues
 fn print_each_spaced<F, D>(paths: Vec<RecordPath>, f: F)
     where
         F: Fn(RecordPath) -> Result<D>,
@@ -120,7 +127,6 @@ fn print_each_spaced<F, D>(paths: Vec<RecordPath>, f: F)
     let mut paths = paths.into_iter();
 
     if let Some(p) = paths.next() {
-        // If an error was encountered, inform the user and continue.
         match f(p) {
             Ok(d) => println!("{d}"),
             Err(e) => e.print_full()
