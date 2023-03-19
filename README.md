@@ -4,31 +4,15 @@
 as a password manager, but its features permit other use cases. Contributions
 are welcome, especially in the form of security testing.
 
-```
-$ pass -t
-:: Password:
-Accounts
-├── Bar
-│   ├── note
-│   └── password
-└── Foo
-    └── password
+![Screenshot](samples/screenshot.png "Is this security?")
 
-$ pass foo bar
-:: Password:
-\o/
-Doveryay, no proveryay
+Notable features include:
 
-$ pass -M
-:: Password:
-> setopt match-kind exact
-> mkgrp Baz
-> mkitm Baz.username
-:: Value: Louise Michel
-> show Bar.password
-Doveryay, no proveryay
-> exit
-```
+- Clipboard support
+- An interactive TUI for editing
+- Versatile data format (exportable, arbitrary depth...)
+- ChaCha20-Poly1305 encryption with Argon2id for key generation
+- Crash protection and recovery
 
 ## Installation
 
@@ -82,8 +66,6 @@ Example: pass -d5 -c foo.bar
 
 ## TODO: program documentation
 
-screenshot here
-
 Document encryption and security with links to further docs (Argon2id and
 XChaCha20Poly1305, best available).
 
@@ -91,6 +73,10 @@ Standard man page also with environment info etc., and advice to see it in help
 text.
 
 document that we can configure with `config.rs`
+
+document where the data is stored by default
+- XDG data directory
+- backups in [XDG data]/backup
 
 The focus of this program (and what mainly distinguishes from other similar
 ones) is on maximum possible security and strict safety, with usability and
@@ -125,9 +111,9 @@ Possibly add to the Free Software Directory (we are gplv3)
 
 ## TODO: dependencies
 
-- rustc and cargo
-- internet connection only for standard installation
-- unix system (currently only tested on arch linux)
+- `rustc` and `cargo`
+- Internet connection (for initial installation and updates)
+- Unix system (currently only tested on Arch Linux)
 
 ## License
 
