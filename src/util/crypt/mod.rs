@@ -4,7 +4,8 @@ use chacha20poly1305::aead::stream;
 
 use chacha20poly1305::aead::KeyInit;
 
-// XXX: this is authenticated encryption
+// Authenticated encryption: allows us to detect if the key is invalid (and
+// therefore the password incorrect).
 use chacha20poly1305::{
     XChaCha20Poly1305,
     aead::Payload
@@ -40,11 +41,12 @@ pub const PLAIN_BLOCK_LEN: usize = 0x1000;
 /// [`CryptCtx::decrypt`].
 pub const ENCRYPTED_BLOCK_LEN: usize = PLAIN_BLOCK_LEN + 0x10;
 
-/// XXX: cryptographic context, containing necessary cryptographic data
-/// including the private key
-pub struct CryptCtx<'k, 'm> {
+/// Cryptographic context, containing necessary cryptographic data.
+///
+/// Includes the private key, salt and nonce.
+pub struct CryptCtx<'k, 'h> {
     key: &'k Key,
-    head: &'m Header
+    head: &'h Header
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -57,15 +59,15 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-impl<'k, 'm> CryptCtx<'k, 'm> {
-    pub fn new(key: &'k Key, head: &'m Header) -> Self {
+impl<'k, 'h> CryptCtx<'k, 'h> {
+    /// Constructs a new `CryptCtx`.
+    pub fn new(key: &'k Key, head: &'h Header) -> Self {
         Self { key, head }
     }
 
-    /// XXX: passing `BufWriter` with a big buffer may be a good idea as long as
-    ///  the buffer is cleared afterwards (it could contain plaintext)
-    /// XXX:  Uses the salt as associated data
-    /// if data is empty, does nothing
+    /// Encrypts the data in `src` and writes it to `dest` block by block.
+    ///
+    /// Has no effect if `src` is empty. Plain data is never copied.
     pub fn encrypt<D>(&self, mut src: &[u8], mut dest: D) -> Result<()>
         where
             D: Write
@@ -75,12 +77,7 @@ impl<'k, 'm> CryptCtx<'k, 'm> {
         let cipher = XChaCha20Poly1305::new(self.key.as_slice().into());
         let mut cryptor = Cryptor::from_aead(cipher, self.head.nonce().into());
 
-        // TODO: use in_place methods
-        loop {
-            if src.is_empty() {
-                break;
-            }
-
+        while !src.is_empty() {
             let (block, at_last_block) = if src.len() <= PLAIN_BLOCK_LEN {
                 (src, true)
             } else {
@@ -88,12 +85,16 @@ impl<'k, 'm> CryptCtx<'k, 'm> {
             };
 
             // Use the salt as the AAD.
-            let payload = payload_from(block, self.head.salt());
+            let payload = payload_with(block, self.head.salt());
 
-            let encrypted_block = cryptor.encrypt_next(payload)
+            // Unfortunately, `encrypt_next` allocated a new `Vec` for every
+            // block decrypted, which may impact performance. However, a decent
+            // allocator should reuse the same memory on every loop iteration,
+            // so the performance impact may be minimal.
+            let crypted_block = cryptor.encrypt_next(payload)
                 .map_err(|_| Error::EncryptingBlock)?;
 
-            dest.write_all(&encrypted_block)
+            dest.write_all(&crypted_block)
                 .map_err(Error::WritingBlock)?;
 
             if at_last_block {
@@ -106,17 +107,13 @@ impl<'k, 'm> CryptCtx<'k, 'm> {
         Ok(())
     }
 
-    /// XXX: zeroes encryption buffers after use, and zeroes decrypted data (if
-    ///      any) on error
+    /// Encrypts the data in `src` block by block and returns it.
     ///
-    ///   Uses the salt as associated data
+    /// Returns an empty `Vec` if `src` is empty. Clears plain data buffers
+    /// using [`Erase::erase`][1] before returning, and clears the decrypted
+    /// data if an error occurs.
     ///
-    ///   if `data` is not in memory, like a File, use `BufReader` with a big
-    ///   buffer to increase performance (many reads are made sequentially)
-    ///
-    ///   works on `data` of any size, even if it doesnt fit in RAM
-    ///
-    /// if data is empty, returns empty
+    /// [1]: [`super::secret::Erase`]
     pub fn decrypt<S>(&self, mut src: S) -> Result<Vec<u8>>
         where
             S: Read
@@ -127,27 +124,27 @@ impl<'k, 'm> CryptCtx<'k, 'm> {
         let mut cryptor = Cryptor::from_aead(cipher, self.head.nonce().into());
 
         let mut result = Secret::new(Vec::<u8>::new());
-        let mut buffer = [0_u8; ENCRYPTED_BLOCK_LEN];
+        let mut crypted_block = [0_u8; ENCRYPTED_BLOCK_LEN];
 
-        // TODO: use in_place methods
         loop {
-            let read_len = src.read(&mut buffer)
+            let read_len = src.read(&mut crypted_block)
                 .map_err(Error::ReadingBlock)?;
 
             if read_len == 0 {
                 break;
             }
 
-            let (block, at_last_block) = if read_len < buffer.len() {
-                (&buffer[..read_len], true)
+            let (block, at_last_block) = if read_len < crypted_block.len() {
+                (&crypted_block[..read_len], true)
             } else {
-                (buffer.as_slice(), false)
+                (crypted_block.as_slice(), false)
             };
 
-            // Use the salt as the AAD.
-            let payload = payload_from(block, self.head.salt());
+            // As with `encrypt`.
+            let payload = payload_with(block, self.head.salt());
 
             let decrypted_block = Secret::new(
+                // As with `encrypt`.
                 cryptor.decrypt_next(payload)
                     .map_err(|_| Error::DecryptingBlock)?
             );
@@ -176,6 +173,6 @@ impl Display for Error {
     }
 }
 
-fn payload_from<'m, 'a>(msg: &'m [u8], aad: &'a [u8]) -> Payload<'m, 'a> {
+fn payload_with<'m, 'a>(msg: &'m [u8], aad: &'a [u8]) -> Payload<'m, 'a> {
     Payload { msg, aad }
 }

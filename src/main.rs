@@ -289,7 +289,7 @@ fn decrypt(mut data: &mut File, pw: &str) -> Result<Vec<u8>> {
         .map_err(Error::ReadingHeader)?;
 
     let key = Secret::new(
-        Key::from_password(pw.as_bytes(), &head)
+        Key::from_password(pw, &head)
             .map_err(input_pw::Error::GeneratingKey)?
     );
 
@@ -303,7 +303,7 @@ fn decrypt(mut data: &mut File, pw: &str) -> Result<Vec<u8>> {
 fn over_encrypt(data: &[u8], mut dest: File, pw: &str) -> Result<()> {
     let head = Header::generate();
 
-    let key = Key::from_password(pw.as_bytes(), &head)
+    let key = Key::from_password(pw, &head)
         .map_err(input_pw::Error::GeneratingKey)?;
 
     let crypt_ctx = CryptCtx::new(&key, &head);

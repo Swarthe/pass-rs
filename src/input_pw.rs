@@ -49,7 +49,7 @@ pub fn confirm_to_key(
 pub fn read_to_key(head: &Header, prompt: &str) -> Result<Key> {
     let pw = Secret::new(read(prompt)?);
 
-    let result = Key::from_password(pw.as_bytes(), head)
+    let result = Key::from_password(pw, head)
         .map_err(Error::GeneratingKey)?;
 
     Ok(result)

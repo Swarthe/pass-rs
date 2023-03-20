@@ -6,8 +6,10 @@ use std::fmt;
 
 use std::fmt::Display;
 
-/// XXX: should be secured and erase from memory after use etc...
-///  wrap in `Secret`
+/// A private encryption key.
+///
+/// Should be secured and erased from memory after use, for example by wrapping
+/// it in a [`Secret`][`crate::util::secret::Secret`].
 #[derive(PartialEq, Eq)]
 pub struct Key(Vec<u8>);
 
@@ -22,7 +24,12 @@ impl Key {
     /// [`chacha20poly1305`] documentation.
     pub const LEN: usize = 32;
 
-    pub fn from_password(pw: &[u8], head: &Header) -> Result<Self>
+    /// Returns a `Key` hashed from `pw`.
+    ///
+    /// Uses the salt in `head`.
+    pub fn from_password<P>(pw: P, head: &Header) -> Result<Self>
+        where
+            P: AsRef<[u8]>
     {
         use argon2::{Config, Variant, Version};
 
@@ -34,13 +41,18 @@ impl Key {
             ..Default::default()
         };
 
-        let result = argon2::hash_raw(pw, head.salt(), &hash_conf)
-            .map_err(Error::HashingPassword)?;
+        let result = argon2::hash_raw(
+            pw.as_ref(),
+            head.salt(),
+            &hash_conf
+        ).map_err(Error::HashingPassword)?;
 
         Ok(Self(result))
     }
 
-    /// XXX: guaranteed to be `Self::LEN` bytes long
+    /// Returns a reference to the contained key.
+    ///
+    /// The returned slice is guaranteed to be `Self::LEN` bytes long.
     pub fn as_slice(&self) -> &[u8] {
         &self.0
     }
