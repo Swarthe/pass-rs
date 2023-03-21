@@ -56,7 +56,7 @@ impl Cmd {
     fn exec(self) -> Result<()> {
         use Cmd::*;
 
-        match Cmd::from_env()? {
+        match self {
             ShowUsage(usg) => println!("{usg}"),
             ShowVersion(ver) => println!("{ver}"),
             HandleFile(cmd, path) => cmd.exec(path)?,
