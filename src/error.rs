@@ -167,7 +167,7 @@ impl Display for Error {
                 write!(f, "invalid input: {e}"),
             FindingRecord(e) =>
                 write!(f, "{e}"),
-            AddingRecord(name, e) =>
+            AddingRecord(e, name) =>
                 write!(f, "cannot add '{name}': {e}"),
             SerialisingRecord(e) =>
                 write!(f, "{e}"),

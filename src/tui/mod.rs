@@ -10,7 +10,7 @@ use crate::{error, output};
 
 use crate::find::MatchKind;
 
-use crate::util::user_io;
+use crate::util::{user_io, record};
 
 use crate::util::secret::Erase;
 
@@ -199,6 +199,7 @@ impl ReadCmd {
 impl EditCmd {
     fn exec(self, data: &Node<Record>, tui: &mut Tui) -> Result {
         use EditCmd::*;
+        use record::Error::AlreadyExists;
 
         // Exact matching is always used for editing, to prevent mistakes.
         // Furthermore, the default item and other kinds of path inference are
@@ -237,8 +238,13 @@ impl EditCmd {
 
             CreateItem { dest, name } => {
                 let parent = dest.find_group_in(data, MK)?;
-                let item = Record::new_item(name, input!("Value: ")?);
 
+                // Don't ask for a value if the item cannot be created.
+                if let Ok(_) = Group::get(&parent, &name) {
+                    return Err(Error::AddingRecord(AlreadyExists, name))
+                }
+
+                let item = Record::new_item(name, input!("Value: ")?);
                 insert(item, &parent)?;
             }
 
@@ -260,7 +266,7 @@ impl EditCmd {
                     &mut value
                 );
 
-                value.erase();
+                value.erase();      // Erase the old value.
             }
         }
 
