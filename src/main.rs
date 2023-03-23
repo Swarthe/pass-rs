@@ -6,7 +6,7 @@ mod config;
 
 mod error;
 mod env;
-mod recover;
+mod backup;
 mod input_pw;
 mod serial;
 mod find;
@@ -70,7 +70,7 @@ impl FileCmd {
     fn exec(self, path: SafePath) -> Result<()> {
         use FileCmd::*;
 
-        if let Err(e) = recover::maybe_recover(&path) {
+        if let Err(e) = backup::maybe_recover(&path) {
             return Err(Error::RecoveringBackup(e, path))
         }
 
@@ -137,7 +137,7 @@ impl ReadCmd {
 
 impl ChangeCmd {
     fn exec(self, path: SafePath) -> Result<()> {
-        use recover::Error::File as RecoverError;
+        use backup::Error::File as RecoverError;
         use ChangeCmd::*;
         use tui::{Tui, Status};
         use tui::Status::{Stopped, Clipped};

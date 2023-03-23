@@ -1,11 +1,11 @@
 use crate::{
-    user_io,
-    file
-};
-
-use crate::{
     info,
     confirm
+};
+
+use crate::util::{
+    user_io,
+    file
 };
 
 use crate::env::PROGNAME;
@@ -37,21 +37,25 @@ pub fn maybe_recover(path: &SafePath) -> Result {
     let is_backed_up = path.is_backed_up()
         .map_err(Error::File)?;
 
-    if is_backed_up {
-        info!("Backup found at '{}'", path.backup.display());
-        info!("This might mean that '{PROGNAME}' crashed while editing it");
+    if !is_backed_up {
+        return Ok(());
+    }
 
-        if confirm!("Recover the backup?")? {
-            path.recover()
-                .map_err(Error::File)
-        } else if confirm!("Remove the backup anyway?")? {
-            path.remove_backup()
-                .map_err(Error::Removal)
-        } else {
-            Err(Error::RemovalRefusal)
-        }
+    info!("Backup found for '{}'", path.display());
+
+    println!(
+        "This may mean that '{PROGNAME}' crashed while modifying it, \
+        or that another instance is modifying it."
+    );
+
+    if confirm!("Recover the backup?")? {
+        path.recover()
+            .map_err(Error::File)
+    } else if confirm!("Remove the backup anyway?")? {
+        path.remove_backup()
+            .map_err(Error::Removal)
     } else {
-        Ok(())
+        Err(Error::RemovalRefusal)
     }
 }
 
@@ -60,10 +64,10 @@ impl Display for Error {
         use Error::*;
 
         match self {
-            UserIo(e)       => write!(f, "{e}"),
-            File(e)         => write!(f, "{e}"),
-            Removal(e)      => write!(f, "removal failed: {e}"),
-            RemovalRefusal  => write!(f, "user refusal")
+            UserIo(e)      => write!(f, "{e}"),
+            File(e)        => write!(f, "{e}"),
+            Removal(e)     => write!(f, "removal failed: {e}"),
+            RemovalRefusal => write!(f, "user refusal")
         }
     }
 }

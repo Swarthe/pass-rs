@@ -1,6 +1,6 @@
 use crate::{
     env,
-    recover,
+    backup,
     input_pw,
     serial,
     find
@@ -50,7 +50,7 @@ pub enum Error {
     ExposingMemory(proc::Error),
     StartingProcess(proc::Error),
 
-    RecoveringBackup(recover::Error, SafePath),
+    RecoveringBackup(backup::Error, SafePath),
     OpeningFile(file::Error, file::Mode, SafePath),
     MakingBackup(file::Error, SafePath),
     RemovingFile(file::Error, SafePath),
@@ -100,7 +100,7 @@ impl Error {
     pub fn advice(&self) -> Option<Advice> {
         use Error::*;
         use env::Error::*;
-        use recover::Error::RemovalRefusal;
+        use backup::Error::RemovalRefusal;
         use crypt::Error::DecryptingBlock;
 
         use file::Mode;
