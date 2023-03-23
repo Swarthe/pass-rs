@@ -10,17 +10,23 @@ use std::{
     fs::File
 };
 
-/// TODO: detail how this actually works (backups etc)
+/// A path to a backed up file.
+///
+/// Contains two paths, one to the file itself and one to its backup. Supports
+/// methods to create and handle the backup.
 pub struct SafePath {
     pub main: PathBuf,
     pub backup: PathBuf
 }
 
+/// Permissions with which to open a file.
+///
+/// Similar to [`File::options`].
 #[derive(Clone, Copy)]
 pub enum Mode {
     Read,
     ReadWrite,
-    /// XXX: create a file for writing or fail
+    /// Fail if the file already exists.
     CreateWrite
 }
 
@@ -146,11 +152,9 @@ fn backup_name_from(file_path: &Path) -> OsString {
 /// This function is guaranteed to map any two different paths to two different
 /// file names. In other words, every possible input has a unique output, so a
 /// name collision cannot occur.
-// TODO: inelegant (ugly imperative) and platform-specific (unix) because of
-//       `OsStrExt`
 fn file_name_from(path: &Path) -> OsString {
     use path_absolutize::Absolutize;
-    use std::os::unix::ffi::OsStrExt;  // TODO: platform specific :(
+    use std::os::unix::ffi::OsStrExt;
 
     const SEP_SUBSTITUTE: char = '%';
     const SEP_SUBSTITUTE_STR: &str = "%";
