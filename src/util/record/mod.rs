@@ -118,6 +118,17 @@ impl Record {
         DisplayTree(Rc::clone(this))
     }
 
+    pub fn do_with_meta<O, R>(&self, op: O) -> R
+        where
+            O: FnOnce(&Metadata) -> R
+    {
+        match self {
+            Self::Group(g) => op(&g.borrow_mut().meta),
+            Self::Item(i) => op(&i.borrow_mut().meta)
+        }
+
+    }
+
     pub fn parent(&self) -> Option<Node<Group>> {
         match self {
             Self::Group(g) => g.borrow().parent(),

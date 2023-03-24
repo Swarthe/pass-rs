@@ -212,7 +212,7 @@ impl EditCmd {
 
         match self {
             Remove { paths } => for p in paths {
-                let rec = match p.find_in(data, MK) {
+                let mut rec = match p.find_in(data, MK) {
                     Ok(r) => r,
                     Err(e) => err_continue!("{e}")
                 };
@@ -222,7 +222,14 @@ impl EditCmd {
                     None => err_continue!("'{p}': cannot remove root group")
                 };
 
-                remove(rec, parent);
+                rec.borrow().do_with_meta(|meta| {
+                    // `rec` is known to be a child of `parent`, so it can be
+                    // infallibly removed.
+                    parent.borrow_mut()
+                        .remove(meta.name()).unwrap();
+                });
+
+                rec.erase();    // `rec` is now orphaned and should be erased.
             }
 
             Move { src, dest } => {
@@ -240,7 +247,7 @@ impl EditCmd {
                 let parent = dest.find_group_in(data, MK)?;
 
                 // Don't ask for a value if the item cannot be created.
-                if let Ok(_) = Group::get(&parent, &name) {
+                if Group::get(&parent, &name).is_ok() {
                     return Err(Error::AddingRecord(AlreadyExists, name))
                 }
 
@@ -318,40 +325,14 @@ at | abort => Abort"
     }
 }
 
-/// Removes `rec` from `parent` and erases it.
-///
-/// Panics if `rec` is not a member of `parent`
-fn remove(rec: Node<Record>, parent: Node<Group>) {
-    let name = clone_name(&rec);
-
-    // The record can only be removed if its parent group is its only owner.
-    drop(rec);
-
-    // `rec` is known to be a child of `parent`, so it can be infallibly
-    // removed.
-    let mut removed = parent.borrow_mut().remove(&name).unwrap();
-    removed.erase();
-
-}
-
 /// erase `rec` on failure
 fn insert(mut rec: Node<Record>, group: &Node<Group>) -> Result {
-    match Group::insert(group, &rec) {
-        Ok(()) => Ok(()),
+    Group::insert(group, &rec).map_err(|e| {
+        let name = rec.borrow()
+            .do_with_meta(|meta| meta.name().to_owned());
 
-        Err(e) => {
-            let name = clone_name(&rec);
-            rec.erase();
+        rec.erase();
 
-            Err(Error::AddingRecord(e, name))
-        }
-    }
-}
-
-// TODO: find a way to do this without cloning (hard)
-fn clone_name(rec: &Node<Record>) -> String {
-    match &*rec.borrow() {
-        Record::Group(g) => g.borrow().name().to_owned(),
-        Record::Item(i) => i.borrow().name().to_owned(),
-    }
+        Error::AddingRecord(e, name)
+    })
 }
