@@ -8,7 +8,7 @@ Group(
             members: [
                 Item(
                     name: "note",
-                    value: "I have something to say.",
+                    value: "I have something to say.\nNevermind ¯\\_(ツ)_/¯",
                     metadata: {},
                 ),
                 Item(
@@ -25,6 +25,11 @@ Group(
                 Item(
                     name: "password",
                     value: "\\o/",
+                    metadata: {},
+                ),
+                Item(
+                    name: "username",
+                    value: "Louise Michel",
                     metadata: {},
                 ),
             ],
