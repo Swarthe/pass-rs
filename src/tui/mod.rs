@@ -251,7 +251,9 @@ impl EditCmd {
                     return Err(Error::AddingRecord(AlreadyExists, name))
                 }
 
-                let item = Record::new_item(name, input!("Value: ")?);
+                let value = input_escaped("Value: ")?;
+                let item = Record::new_item(name, value);
+
                 insert(item, &parent)?;
             }
 
@@ -266,7 +268,7 @@ impl EditCmd {
                 let item = path.find_item_in(data, MK)?;
                 // We don't need to wrap this in a `Secret` because it will be
                 // immediately and infallibly swapped into a protected record.
-                let mut value = input!("New value: ")?;
+                let mut value = input_escaped("New value: ")?;
 
                 mem::swap(
                     item.borrow_mut().value_mut(),
@@ -323,6 +325,44 @@ at | abort => Abort"
 
         Ok(())
     }
+}
+
+fn input_escaped(prompt: &str) -> error::Result<String> {
+    let input = Secret::new(input!("{prompt}")?);
+
+    Ok(unescape(&input))
+}
+
+/// Returns `s` with whitespace escapes converted into the whitespace they
+/// represent.
+///
+/// Handles '\n', '\r', '\t' and '\\'. As this function never fails, a single
+/// trailing backslash is kept unchanged if it exists.
+fn unescape(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            let Some(c2) = chars.next() else {
+                // Handle the single trailing backslash.
+                result.push(c);
+                break;
+            };
+
+            result.push(match c2 {
+                'n'  => '\n',
+                'r'  => '\r',
+                't'  => '\t',
+                '\\' => '\\',
+                c2   => c2
+            });
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
 }
 
 /// erase `rec` on failure

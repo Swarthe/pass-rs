@@ -32,7 +32,9 @@ pub enum EditCmd {
     Move { src: RecordPath, dest: RecordPath },   // XXX: also used for renaming, possible also root
     Copy { src: RecordPath, dest: RecordPath },
     // Group operations.
-    CreateItem { dest: RecordPath, name: String },
+    CreateItem { dest: RecordPath, name: String },  // XXX: this and changevalue
+                                                    // accept whitespace escapes
+                                                    // (multiline values)
     // TODO: maybe should accept multiple paths (doesnt need input like mkitm)
     CreateGroup { dest: RecordPath, name: String },
     // Item operations
