@@ -7,12 +7,12 @@ use nix::sys::termios::{
 
 use nix::libc::STDIN_FILENO;
 
-use std::{
-    fmt,
-    io
-};
+use std::{fmt, io};
 
-use std::os::unix::io::RawFd;
+use std::{
+    io::ErrorKind::UnexpectedEof,
+    os::unix::io::RawFd
+};
 
 pub mod style;
 
@@ -152,20 +152,30 @@ pub type Error = io::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+// TODO: in `main.rs`, streamline `decrypt` such that we read metadata before
+// asking for password (logical order)
+
 /// XXX: repeats prompt until user inputs (possible empty) line (refuses EOF)
 ///   line is returned without trailing newline
-pub fn get_line(prompt: fmt::Arguments<'_>) -> Result<String> {
+pub fn get_line(prompt: fmt::Arguments) -> Result<String> {
     // Repeat until valid input is read.
     Ok(loop {
         eprint!("{prompt}");
 
-        let mut line = read_line()?;
+        let mut line = match read_line() {
+            Ok(l) => l,
 
-        if !line.is_empty() {
-            // Remove the trailing newline entered by the user.
-            line.pop();
-            break line;
-        }
+            Err(e) => {
+                // Simulate a newline if the user closed the stream.
+                if e.kind() == UnexpectedEof { eprintln!() };
+                return Err(e);
+            }
+        };
+
+        // Remove the trailing newline entered by the user. `read_line()` always
+        // returns a non-empty `String` so this must succeed.
+        line.pop();
+        break line;
     })
 }
 
@@ -199,10 +209,9 @@ pub fn show_input() -> Result<()> {
 
 /// Reads a line from standard input.
 ///
+/// The returned [`String`] is never empty, and contains a trailing newline.
 /// Receiving EOF is considered an error.
 fn read_line() -> Result<String> {
-    use std::io::ErrorKind;
-
     let mut input = String::new();
 
     let read_len = io::stdin().read_line(&mut input)?;
@@ -210,7 +219,7 @@ fn read_line() -> Result<String> {
     if read_len > 0 {
         Ok(input)
     } else {
-        Err(ErrorKind::UnexpectedEof.into())
+        Err(UnexpectedEof.into())
     }
 }
 
