@@ -15,11 +15,19 @@ use std::{
 pub trait Erase {
     /// Erases an object by overwriting its data with zeros.
     ///
-    /// Sensitive metadata contained within the object, for example the length
-    /// and capacity of a [`Vec`], is also set to zero if it exists. The memory
-    /// it uses is then freed. In other words, containers are emptied after
-    /// their contents are erased. However, the objects must remain valid after
-    /// the operation (despite contain no data).
+    /// This function is intended for pointer types, like [`Vec`],
+    /// [`String`]. It does only one thing: erasing the raw data they contain.
+    /// However, it does not erase associated metadata, like the length stored
+    /// within a [`Vec`]. This is because it very rarely serves a purpose to do
+    /// so - the most common use case of this trait is in the context of a
+    /// [`Secret`][`super::Secret`], which is constructed by moving an object
+    /// into it. Indeed, this is likely to copy and leak the aforementioned
+    /// metadata anyway (as is the case of the length stored in a [`Vec`]). If
+    /// the metadata must also be kept secret, it must never be copied or moved
+    /// and must be manually erased once it is no longer needed.
+    ///
+    /// `self` remains valid after this operation, although it no longer
+    /// contains any useful data.
     ///
     /// Uses volatile writes to ensure that the operation is not compromised by
     /// compiler optimisations. Additionally, atomic fences are used after these
@@ -29,22 +37,13 @@ pub trait Erase {
     ///
     /// The write operations themselves must be constant-time per byte,
     /// irrespective of its value. This is to mitigate side-channel attacks.
-    /// Furthermore, no explicit or implicit reference can be made to the
-    /// data being overwritten. It is overwritten in place, without being copied
-    /// or otherwise leaked. This must be carefully ensured with `Copy` types.
+    /// The data is overwritten in place, without being copied or otherwise
+    /// leaked. This must be carefully ensured with [`Copy`] types.
     ///
     /// This function should never be inlined to prevent other types of
     /// optimisation-related security breaches. The attribute `inline(never)`
-    /// can be used for this.
+    /// can be used for this purpose.
     fn erase(&mut self);
-}
-
-impl Erase for u8 {
-    #[inline(never)]
-    fn erase(&mut self) {
-        set_volatile(self, 0);
-        atomic_fence();
-    }
 }
 
 impl<T: Erase> Erase for Vec<T> {
@@ -54,8 +53,16 @@ impl<T: Erase> Erase for Vec<T> {
             v.erase();
         }
 
-        self.clear();
-        self.shrink_to_fit();
+        atomic_fence();
+    }
+}
+
+impl Erase for Vec<u8> {
+    #[inline(never)]
+    fn erase(&mut self) {
+        for v in self.as_mut_slice() {
+            set_volatile(v, 0);
+        }
 
         atomic_fence();
     }
@@ -64,9 +71,9 @@ impl<T: Erase> Erase for Vec<T> {
 impl Erase for String {
     #[inline(never)]
     fn erase(&mut self) {
-        // SAFETY: The `Erase` implementation for `Vec` empties it, thus
-        // emptying the `String` here. Being empty is a valid state for a
-        // `String`.
+        // SAFETY: The `Erase` implementation for `Vec` overwrites its data with
+        // zeroes, which are valid utf-8 code points. Thus, `self` is left in a
+        // valid state.
         unsafe {
             self.as_mut_vec().erase();
         }
@@ -80,7 +87,6 @@ impl<'k, V: Erase> Erase for BTreeMap<&'k str, V> {
             v.erase();
         }
 
-        self.clear();
         atomic_fence();
     }
 }
@@ -94,13 +100,12 @@ impl<K, V> Erase for BTreeMap<K, V>
     fn erase(&mut self) {
         // TODO: creates copy if K or V are Copy, fix if possible using mutable
         // references
-        // TODO: inefficient, does comparisons although we can pop any element
+        //  inefficient, does comparisons although we can pop any element
         while let Some((mut k, mut v)) = self.pop_last() {
             k.erase();
             v.erase();
         }
 
-        self.clear();
         atomic_fence();
     }
 }
