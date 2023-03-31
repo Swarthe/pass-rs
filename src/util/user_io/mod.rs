@@ -152,9 +152,6 @@ pub type Error = io::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-// TODO: in `main.rs`, streamline `decrypt` such that we read metadata before
-// asking for password (logical order)
-
 /// XXX: repeats prompt until user inputs (possible empty) line (refuses EOF)
 ///   line is returned without trailing newline
 pub fn get_line(prompt: fmt::Arguments) -> Result<String> {

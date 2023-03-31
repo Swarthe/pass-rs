@@ -89,10 +89,7 @@ impl ReadCmd {
 
         let data = Secret::new({
             let (mut file, _) = open(Mode::Read, path)?;
-            // TODO: maybe implement password retry if incorrect (also for other
-            // cmds)
-            let pw = Secret::new(input_pw::read("Password: ")?);
-            let serial = Secret::new(decrypt(&mut file, &pw)?);
+            let (serial, _) = decrypt(&mut file)?;
 
             if let Export = self {
                 let ir = Secret::new(serial::ir_from(&serial)?);
@@ -143,8 +140,7 @@ impl ChangeCmd {
         use tui::Status::{Stopped, Clipped};
 
         let (mut file, path) = open(Mode::ReadWrite, path)?;
-        let pw = Secret::new(input_pw::read("Password: ")?);
-        let serial = Secret::new(decrypt(&mut file, &pw)?);
+        let (serial, pw) = decrypt(&mut file)?;
 
         if let Err(e) = path.make_backup() {
             return Err(Error::MakingBackup(e, path));
@@ -169,7 +165,10 @@ impl ChangeCmd {
                                 .map_err(Error::SerialisingRecord)?
                         );
 
-                        over_encrypt(&new_serial, file, &pw)?;
+                        over_encrypt(&new_serial, file, |head| {
+                            Key::from_password(pw, &head)
+                                .map_err(input_pw::Error::GeneratingKey)
+                        })?;
                     }
 
                     Ok(tui.status())
@@ -178,12 +177,13 @@ impl ChangeCmd {
                 ChangePassword => {
                     drop(pw);   // Old password unneeded if we are changing it.
 
-                    over_encrypt_with_input(
-                        &serial,
-                        file,
-                        "New password: ",
-                        "Confirm password: "
-                    )?;
+                    over_encrypt(&serial, file, |head| {
+                        input_pw::confirm_to_key(
+                            &head,
+                            "New password: ",
+                            "Confirm password: "
+                        )
+                    })?;
 
                     Ok(Stopped)
                 }
@@ -233,12 +233,13 @@ impl CreateCmd {
                 }
             };
 
-            over_encrypt_with_input(
-                serial.as_bytes(),
-                file,
-                "Password: ",
-                "Confirm password: "
-            )
+            over_encrypt(serial.as_bytes(), file, |head| {
+                input_pw::confirm_to_key(
+                    &head,
+                    "Password: ",
+                    "Confirm password: "
+                )
+            })
         }();
 
         if result.is_err() {
@@ -283,28 +284,36 @@ fn open(mode: file::Mode, path: SafePath) -> Result<(File, SafePath)> {
     }
 }
 
-/// reads header
-fn decrypt(mut data: &mut File, pw: &str) -> Result<Vec<u8>> {
+// TODO: maybe implement password retry if incorrect
+/// reads header and password, returns decrypted data and pw
+fn decrypt(
+    mut data: &mut File
+) -> Result<(Secret<Vec<u8>>, Secret<String>)> {
     let head = Header::read_from(&mut data)
         .map_err(Error::ReadingHeader)?;
 
+    let pw = Secret::new(input_pw::read("Password: ")?);
+
     let key = Secret::new(
-        Key::from_password(pw, &head)
+        Key::from_password(&pw, &head)
             .map_err(input_pw::Error::GeneratingKey)?
     );
 
     let crypt_ctx = CryptCtx::new(&key, &head);
+    let serial = Secret::new(crypt_ctx.decrypt(data)?);
 
-    Ok(crypt_ctx.decrypt(data)?)
+    Ok((serial, pw))
 }
 
-/// generates new key and salt
+/// generates new key, salt and nonce (good for security)
 /// and empties the file before writing
-fn over_encrypt(data: &[u8], mut dest: File, pw: &str) -> Result<()> {
+/// uses `key` to get the key (wrapped in a secret immediately after call)
+fn over_encrypt<F>(data: &[u8], mut dest: File, key: F) -> Result<()>
+    where
+        F: FnOnce(&Header) -> input_pw::Result<Key>
+{
     let head = Header::generate();
-
-    let key = Key::from_password(pw, &head)
-        .map_err(input_pw::Error::GeneratingKey)?;
+    let key = Secret::new(key(&head)?);
 
     let crypt_ctx = CryptCtx::new(&key, &head);
 
@@ -313,34 +322,6 @@ fn over_encrypt(data: &[u8], mut dest: File, pw: &str) -> Result<()> {
 
     head.write_to(&mut dest)
         .map_err(Error::WritingHeader)?;
-
-    Ok(crypt_ctx.encrypt(data, &mut dest)?)
-}
-
-/// gets key from user input (password is asked twice for confirmation),
-/// and generates key and salt
-/// and empties the file before writing
-fn over_encrypt_with_input(
-    data: &[u8],
-    mut dest: File,
-    prompt_1: &str,
-    prompt_2: &str
-) -> Result<()> {
-    let head = Header::generate();
-
-    let key = Secret::new(input_pw::confirm_to_key(
-        &head,
-        prompt_1,
-        prompt_2
-    )?);
-
-    file::clear(&mut dest)
-        .map_err(Error::ClearingFile)?;
-
-    head.write_to(&mut dest)
-        .map_err(Error::WritingHeader)?;
-
-    let crypt_ctx = CryptCtx::new(&key, &head);
 
     Ok(crypt_ctx.encrypt(data, &mut dest)?)
 }
