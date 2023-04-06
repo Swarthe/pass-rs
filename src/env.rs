@@ -73,7 +73,7 @@ pub enum ReadCmd {
 /// Editing a pass file.
 pub enum ChangeCmd {
     /// Modifying the data.
-    Edit(tui::Config),
+    Modify(tui::Config),
     /// Changing the password used to access the data.
     ChangePassword
 }
@@ -326,7 +326,7 @@ impl FileCmd {
             List => Read(ReadCmd::List(empty_or_some(rec_paths), match_kind)),
             Tree => Read(ReadCmd::Tree(empty_or_some(rec_paths), match_kind)),
 
-            Edit => Change(ChangeCmd::Edit(Config { match_kind, clip_time })),
+            Edit => Change(ChangeCmd::Modify(Config { match_kind, clip_time })),
             ChangePassword => Change(ChangeCmd::ChangePassword),
 
             Export => Read(ReadCmd::Export),

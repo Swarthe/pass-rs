@@ -149,7 +149,7 @@ impl ChangeCmd {
         // TODO: use `try` blocks once available
         let result = move || -> Result<Status> {
             match self {
-                Edit(config) => {
+                Modify(config) => {
                     let data = Secret::new(serial::parse(&serial)?);
                     let mut tui = Tui::new(config);
 
