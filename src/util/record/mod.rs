@@ -80,7 +80,8 @@ impl Record {
                     // as long as `rec` is owned by it (and that the reference
                     // is therefore valid). The name will never be modified, so
                     // it will never be reallocated. Therefore, an immutable
-                    // reference is valid.
+                    // reference is valid. Furthermore, the record and its name
+                    // will never be moved as it is kept behind an `Rc`.
                     let name = unsafe {
                         std::mem::transmute::<_, &'static str>(ir.name())
                     };
@@ -123,10 +124,9 @@ impl Record {
             O: FnOnce(&Metadata) -> R
     {
         match self {
-            Self::Group(g) => op(&g.borrow_mut().meta),
-            Self::Item(i) => op(&i.borrow_mut().meta)
+            Self::Group(g) => op(&g.borrow().meta),
+            Self::Item(i) => op(&i.borrow().meta)
         }
-
     }
 
     pub fn parent(&self) -> Option<Node<Group>> {
@@ -235,7 +235,7 @@ impl Group {
 
             meta.parent = Some(Rc::downgrade(this));
 
-            // SAFETY: Same as with `Record::from_ir`.
+            // SAFETY: Same as with `Record::from`.
             Ok(unsafe {
                 mem::transmute::<_, &'static str>(name)
             })
@@ -246,9 +246,13 @@ impl Group {
     }
 
     pub fn remove(&mut self, name: &str) -> Result<Node<Record>> {
-        self.members
+        let removed = self.members
             .remove(name)
-            .ok_or(Error::NotFound)
+            .ok_or(Error::NotFound)?;
+
+        removed.borrow().set_parent(None);
+
+        Ok(removed)
     }
 }
 
@@ -336,10 +340,7 @@ impl Record {
     fn with_parent(ir: Ir, parent: &Node<Group>) -> Node<Self> {
         let result = Record::from(ir);
 
-        result.borrow_mut().mutate_meta(|meta| {
-            meta.parent = Some(Rc::downgrade(parent))
-        });
-
+        result.borrow_mut().set_parent(Rc::downgrade(parent));
         result
     }
 
@@ -351,6 +352,13 @@ impl Record {
             Self::Group(g) => op(&mut g.borrow_mut().meta),
             Self::Item(i) => op(&mut i.borrow_mut().meta)
         }
+    }
+
+    fn set_parent<P>(&self, p: P)
+        where
+            P: Into<Option<WeakNode<Group>>>
+    {
+        self.mutate_meta(|meta| meta.parent = p.into());
     }
 }
 
