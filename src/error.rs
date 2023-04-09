@@ -43,7 +43,8 @@ pub enum Error {
     FileSerial(serial::Error),
     InputSerial(serial::Error),
     FindingRecord(find::Error),
-    AddingRecord(record::Error, String),
+    /// name of the record, and the group to which it is added
+    AddingRecord(record::Error, String, String),
     SerialisingRecord(serial::Error),
     Clipboard(clip::Error),
     SecuringMemory(proc::Error),
@@ -167,8 +168,8 @@ impl Display for Error {
                 write!(f, "invalid input: {e}"),
             FindingRecord(e) =>
                 write!(f, "{e}"),
-            AddingRecord(e, name) =>
-                write!(f, "cannot add '{name}': {e}"),
+            AddingRecord(e, name, dest) =>
+                write!(f, "cannot create '{name}' in '{dest}': {e}"),
             SerialisingRecord(e) =>
                 write!(f, "{e}"),
             Clipboard(e) =>

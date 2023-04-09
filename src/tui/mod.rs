@@ -248,7 +248,10 @@ impl EditCmd {
 
                 // Don't ask for a value if the item cannot be created.
                 if Group::get(&parent, &name).is_ok() {
-                    return Err(Error::AddingRecord(AlreadyExists, name))
+                    return Err(Error::AddingRecord(
+                        AlreadyExists, name,
+                        clone_name(&parent)
+                    ))
                 }
 
                 let value = input_escaped("Value: ")?;
@@ -382,6 +385,10 @@ fn insert(mut rec: Node<Record>, group: &Node<Group>) -> Result {
 
         rec.erase();
 
-        Error::AddingRecord(e, name)
+        Error::AddingRecord(e, name, clone_name(&group))
     })
+}
+
+fn clone_name(group: &Node<Group>) -> String {
+    group.borrow().name().to_owned()
 }
