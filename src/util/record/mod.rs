@@ -245,6 +245,7 @@ impl Group {
         Ok(())
     }
 
+    /// mutably borrows the removed record (may panic)
     pub fn remove(&mut self, name: &str) -> Result<Node<Record>> {
         let removed = self.members
             .remove(name)

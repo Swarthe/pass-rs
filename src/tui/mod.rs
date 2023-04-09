@@ -215,15 +215,18 @@ impl EditCmd {
                     None => err_continue!("'{p}': cannot remove root group")
                 };
 
-                rec.borrow().do_with_meta(|meta| {
-                    let mut parent = parent.borrow_mut();
+                let mut parent = parent.borrow_mut();
 
-                    info!("Removing '{}' in '{}'", meta.name(), parent.name());
-                    // `rec` is known to be a child of `parent`, so it can be
-                    // infallibly removed.
-                    parent.remove(meta.name()).unwrap();
-                });
+                // We must clone the name to avoid calling `rec.do_with_meta()`.
+                // If we did so, `parent.remove()` would panic as it mutably
+                // borrows `rec`.
+                let name = rec.borrow()
+                    .do_with_meta(|meta| meta.name().to_owned());
 
+                info!("Removing '{name}' in '{}'", parent.name());
+                // `rec` is known to be a child of `parent`, so it can be
+                // infallibly removed.
+                parent.remove(&name).unwrap();
                 rec.erase();    // `rec` is now orphaned and should be erased.
             }
 
