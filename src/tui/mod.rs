@@ -4,7 +4,7 @@ use Status::{Running, Stopped, Aborted, Clipped};
 
 use cmd::{Cmd, ReadCmd, EditCmd, MetaCmd, OptVal};
 
-use crate::{input, err, warn};
+use crate::{input, err, info};
 
 use crate::{error, output};
 
@@ -201,18 +201,11 @@ impl EditCmd {
         use EditCmd::*;
         use record::Error::AlreadyExists;
 
-        // Exact matching is always used for editing, to prevent mistakes.
-        // Furthermore, the default item and other kinds of path inference are
-        // not used.
-        const MK: MatchKind = MatchKind::Exact;
-
-        if tui.conf.match_kind != MK {
-            warn!("exact matching is always used for editing");
-        }
+        let match_kind = tui.conf.match_kind;
 
         match self {
             Remove { paths } => for p in paths {
-                let mut rec = match p.find_in(data, MK) {
+                let mut rec = match p.find_in(data, match_kind) {
                     Ok(r) => r,
                     Err(e) => err_continue!("{e}")
                 };
@@ -223,10 +216,12 @@ impl EditCmd {
                 };
 
                 rec.borrow().do_with_meta(|meta| {
+                    let mut parent = parent.borrow_mut();
+
+                    info!("Removing '{}' in '{}'", meta.name(), parent.name());
                     // `rec` is known to be a child of `parent`, so it can be
                     // infallibly removed.
-                    parent.borrow_mut()
-                        .remove(meta.name()).unwrap();
+                    parent.remove(meta.name()).unwrap();
                 });
 
                 rec.erase();    // `rec` is now orphaned and should be erased.
@@ -244,7 +239,9 @@ impl EditCmd {
             }
 
             CreateItem { dest, name } => {
-                let parent = dest.find_group_in(data, MK)?;
+                let parent = dest.find_group_in(data, match_kind)?;
+
+                info!("Creating item '{name}' in '{}'", parent.borrow().name());
 
                 // Don't ask for a value if the item cannot be created.
                 if Group::get(&parent, &name).is_ok() {
@@ -258,14 +255,23 @@ impl EditCmd {
             }
 
             CreateGroup { dest, name } => {
-                let parent = dest.find_group_in(data, MK)?;
-                let group = Record::new_group(name);
+                let parent = dest.find_group_in(data, match_kind)?;
 
-                insert(group, &parent)?;
+                info!("Creating group '{name}' in '{}'", parent.borrow().name());
+                insert(Record::new_group(name), &parent)?;
             }
 
             ChangeValue { path } => {
-                let item = path.find_item_in(data, MK)?;
+                let item = path.find_item_in(data, match_kind)?;
+                // An item cannot be root, so `item` must have a parent.
+                let parent = item.borrow().parent().unwrap();
+
+                info!(
+                    "Changing value of '{}' in '{}'",
+                    item.borrow().name(),
+                    parent.borrow().name()
+                );
+
                 // We don't need to wrap this in a `Secret` because it will be
                 // immediately and infallibly swapped into a protected record.
                 let mut value = input_escaped("New value: ")?;
