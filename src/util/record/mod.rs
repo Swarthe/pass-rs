@@ -165,23 +165,17 @@ impl Group {
         self.meta.parent()
     }
 
-    pub fn get(this: &Node<Self>, name: &str) -> Result<Node<Record>> {
-        let this = this.borrow();
-
-        let result = this.members
+    pub fn get(&self, name: &str) -> Result<Node<Record>> {
+        let result = self.members
             .get(name)
             .ok_or(Error::NotFound)?;
 
         Ok(Rc::clone(result))
     }
 
-    pub fn get_fuzzy(
-        this: &Node<Self>,
-        name_pat: &str
-    ) -> Result<Node<Record>> {
-        let this = this.borrow();
+    pub fn get_fuzzy(&self, name_pat: &str) -> Result<Node<Record>> {
         let mut first_match = Option::<Match>::None;
-        let mut members_iter = this.members.iter();
+        let mut members_iter = self.members.iter();
 
         for (name, rec) in &mut members_iter {
             if let Some(m) = Match::make(name_pat, name, rec) {

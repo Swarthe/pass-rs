@@ -247,7 +247,7 @@ impl EditCmd {
                 info!("Creating item '{name}' in '{}'", parent.borrow().name());
 
                 // Don't ask for a value if the item cannot be created.
-                if Group::get(&parent, &name).is_ok() {
+                if parent.borrow().get(&name).is_ok() {
                     return Err(Error::AddingRecord(
                         AlreadyExists, name,
                         clone_name(&parent)

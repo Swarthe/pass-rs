@@ -221,8 +221,8 @@ impl RecordPath {
         for pat in self.iter().peekable() {
             let found = match &*rec.borrow() {
                 Record::Group(g) => match mk {
-                    Fuzzy => Group::get_fuzzy(g, pat),
-                    Exact => Group::get(g, pat)
+                    Fuzzy => g.borrow().get_fuzzy(pat),
+                    Exact => g.borrow().get(pat)
                 }.map_err(|e| Error::NotFound {
                     e: Box::new(e),
                     pat: pat.to_owned(),
