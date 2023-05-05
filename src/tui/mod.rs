@@ -67,6 +67,15 @@ macro_rules! err_continue {
     }};
 }
 
+macro_rules! unwrap_continue {
+    ($res:expr) => {{
+        match $res {
+            Ok(v) => v,
+            Err(e) => err_continue!("{e}")
+        }
+    }};
+}
+
 impl Tui {
     pub fn new(conf: Config) -> Self {
         Self {
@@ -205,10 +214,7 @@ impl EditCmd {
 
         match self {
             Remove { paths } => for p in paths {
-                let mut rec = match p.find_in(data, match_kind) {
-                    Ok(r) => r,
-                    Err(e) => err_continue!("{e}")
-                };
+                let mut rec = unwrap_continue!(p.find_in(data, match_kind));
 
                 let parent = match rec.borrow().parent() {
                     Some(p) => p,
@@ -241,34 +247,38 @@ impl EditCmd {
                 err!("unimplemented: '{src}', '{dest}'");
             }
 
-            CreateItem { dest, name } => {
-                let parent = dest.find_group_in(data, match_kind)?;
+            CreateItem { dests_names } => for (dest, name) in dests_names {
+                let parent = unwrap_continue!(
+                    dest.find_group_in(data, match_kind)
+                );
 
                 info!("Creating item '{name}' in '{}'", parent.borrow().name());
 
                 // Don't ask for a value if the item cannot be created.
                 if parent.borrow().get(&name).is_ok() {
-                    return Err(Error::AddingRecord(
+                    err_continue!("{}", Error::AddingRecord(
                         AlreadyExists, name,
                         clone_name(&parent)
-                    ))
+                    ));
                 }
 
-                let value = input_escaped("Value: ")?;
+                let value = unwrap_continue!(input_escaped("Value: "));
                 let item = Record::new_item(name, value);
 
-                insert(item, &parent)?;
+                unwrap_continue!(insert(item, &parent));
             }
 
-            CreateGroup { dest, name } => {
-                let parent = dest.find_group_in(data, match_kind)?;
+            CreateGroup { dests_names } => for (dest, name) in dests_names {
+                let parent = unwrap_continue!(
+                    dest.find_group_in(data, match_kind)
+                );
 
                 info!("Creating group '{name}' in '{}'", parent.borrow().name());
-                insert(Record::new_group(name), &parent)?;
+                unwrap_continue!(insert(Record::new_group(name), &parent));
             }
 
-            ChangeValue { path } => {
-                let item = path.find_item_in(data, match_kind)?;
+            ChangeValue { paths } => for p in paths {
+                let item = unwrap_continue!(p.find_item_in(data, match_kind));
                 // An item cannot be root, so `item` must have a parent.
                 let parent = item.borrow().parent().unwrap();
 
@@ -280,13 +290,9 @@ impl EditCmd {
 
                 // We don't need to wrap this in a `Secret` because it will be
                 // immediately and infallibly swapped into a protected record.
-                let mut value = input_escaped("New value: ")?;
+                let mut value = unwrap_continue!(input_escaped("New value: "));
 
-                mem::swap(
-                    item.borrow_mut().value_mut(),
-                    &mut value
-                );
-
+                mem::swap(item.borrow_mut().value_mut(), &mut value);
                 value.erase();      // Erase the old value.
             }
         }

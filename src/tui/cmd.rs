@@ -32,13 +32,12 @@ pub enum EditCmd {
     Move { src: RecordPath, dest: RecordPath },   // XXX: also used for renaming, possible also root
     Copy { src: RecordPath, dest: RecordPath },
     // Group operations.
-    CreateItem { dest: RecordPath, name: String },  // XXX: this and changevalue
-                                                    // accept whitespace escapes
-                                                    // (multiline values)
-    // TODO: maybe should accept multiple paths (doesnt need input like mkitm)
-    CreateGroup { dest: RecordPath, name: String },
+    CreateGroup { dests_names: Vec<(RecordPath, String)> },
     // Item operations
-    ChangeValue { path: RecordPath },
+    CreateItem { dests_names: Vec<(RecordPath, String)> },  // XXX: this and changevalue
+                                                    // accept whitespace escapes
+                                                    // (multiline values) for input
+    ChangeValue { paths: Vec<RecordPath> },
 }
 
 /// TUI management and information.
@@ -144,19 +143,21 @@ impl Cmd {
             ShowConfig => Meta(MetaCmd::ShowConfig),
 
             Clip => Read(ReadCmd::Clip(into_next(args))),
-            ChangeValue => Edit(EditCmd::ChangeValue { path: into_next(args) }),
+            ChangeValue => Edit(EditCmd::ChangeValue { paths: into_collect(args) }),
             Show => Read(ReadCmd::Show(into_collect(args))),
             Remove => Edit(EditCmd::Remove { paths: into_collect(args) }),
 
             // By splitting the name from a path element, we guarantee that it
-            // is valid as a new record name.
+            // is valid as a new record name (doesn't contain separators).
             CreateGroup => {
-                let (dest, name) = split_name(into_next(args))?;
-                Edit(EditCmd::CreateGroup { dest, name })
+                Edit(EditCmd::CreateGroup {
+                    dests_names: split_each_name(args.map(RecordPath::from))?
+                })
             }
             CreateItem => {
-                let (dest, name) = split_name(into_next(args))?;
-                Edit(EditCmd::CreateItem { dest, name })
+                Edit(EditCmd::CreateItem {
+                    dests_names: split_each_name(args.map(RecordPath::from))?
+                })
             }
 
             List => Read(ReadCmd::List(match args.peek() {
@@ -250,7 +251,7 @@ impl CmdVerb {
             Export | Exit | Abort | ShowConfig =>
                 if a.is_empty() { Ok(a) } else { Err(ExtraArg(take(a, 0))) }
 
-            Clip | CreateGroup | CreateItem | ChangeValue => match a.len() {
+            Clip => match a.len() {
                 1 => Ok(a),
                 0 => Err(MissingArg),
                 _ => Err(Error::ExtraArg(take(a, 1)))
@@ -262,7 +263,7 @@ impl CmdVerb {
                 _ => Err(ExtraArg(take(a, 2)))
             }
 
-            Show | Remove =>
+            Show | CreateGroup | CreateItem | ChangeValue | Remove =>
                 if !a.is_empty() { Ok(a) } else { Err(MissingArg) }
 
             List | Tree | ShowUsage => Ok(a)
@@ -270,16 +271,23 @@ impl CmdVerb {
     }
 }
 
-/// the trailing returned string is guaranteed to be a valid record name without
-/// path delimiters
-fn split_name(path: RecordPath) -> Result<(RecordPath, String)> {
-    // If the path only contains one element, root will be taken as the leading
-    // path.
-    let (leading, trailing) = path
-        .split_last()
-        .map_err(Error::InvalidName)?;
+/// splits each path of `paths` into the leading path and the trailing name
+///
+/// the trailing returned strings are guaranteed to be a valid record name
+/// without path delimiters
+fn split_each_name<I>(paths: I) -> Result<Vec<(RecordPath, String)>>
+    where
+        I: Iterator<Item = RecordPath>
+{
+    paths.map(|path| {
+        // If the path only contains one element, root will be taken as the
+        // leading path.
+        let (leading, trailing) = path
+            .split_last()
+            .map_err(Error::InvalidName)?;
 
-    Ok((leading, trailing.into_inner()))
+        Ok((leading, trailing.into_inner()))
+    }).collect()
 }
 
 fn into_collect<I, J>(iter: impl Iterator<Item = I>) -> Vec<J>
