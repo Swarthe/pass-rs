@@ -132,10 +132,9 @@ impl Cmd {
     fn from_parts(verb: CmdVerb, args: Vec<String>) -> Result<Self> {
         use CmdVerb::*;
 
-        let mut args = verb.check_args(args)?
-            .into_iter().peekable();
+        let have_args = !args.is_empty();
+        let mut args = verb.check_args(args)?.into_iter();
 
-        #[allow(clippy::manual_map)]
         Ok(match verb {
             Export => Read(ReadCmd::Export),
             Exit => Meta(MetaCmd::Exit),
@@ -149,31 +148,27 @@ impl Cmd {
 
             // By splitting the name from a path element, we guarantee that it
             // is valid as a new record name (doesn't contain separators).
-            CreateGroup => {
-                Edit(EditCmd::CreateGroup {
-                    dests_names: split_each_name(args.map(RecordPath::from))?
-                })
-            }
-            CreateItem => {
-                Edit(EditCmd::CreateItem {
-                    dests_names: split_each_name(args.map(RecordPath::from))?
-                })
-            }
+            CreateGroup => Edit(EditCmd::CreateGroup {
+                dests_names: split_each_name(args.map(RecordPath::from))?
+            }),
+            CreateItem => Edit(EditCmd::CreateItem {
+                dests_names: split_each_name(args.map(RecordPath::from))?
+            }),
 
-            List => Read(ReadCmd::List(match args.peek() {
-                Some(_) => Some(into_collect(args)),
-                None => None,
+            List => Read(ReadCmd::List(match have_args {
+                true => Some(into_collect(args)),
+                false => None,
             })),
-            Tree => Read(ReadCmd::Tree(match args.peek() {
-                Some(_) => Some(into_collect(args)),
-                None => None,
+            Tree => Read(ReadCmd::Tree(match have_args {
+                true => Some(into_collect(args)),
+                false => None,
             })),
-            ShowUsage => Meta(MetaCmd::ShowUsage(match args.peek() {
-                Some(_) => Some(
+            ShowUsage => Meta(MetaCmd::ShowUsage(match have_args {
+                true => Some(
                     args.map(CmdVerb::from_str)
                         .collect::<Result<Vec<_>>>()?
                 ),
-                None => None,
+                false => None,
             })),
 
             Move => Edit(EditCmd::Move {
