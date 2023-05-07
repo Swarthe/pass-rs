@@ -79,9 +79,6 @@ macro_rules! info {
 /// input.
 ///
 /// Returns the (possible empty) read input stripped of the trailing newline.
-///
-/// The prompt is repeated until valid input is read (`EOF` is not considered
-/// valid).
 #[macro_export]
 macro_rules! input {
     () => {{
@@ -110,14 +107,11 @@ macro_rules! input {
     }};
 }
 
-/// Displays a formatted prompt to standard error as a yes/no question and
-/// interprets user input.
+/// Displays a formatted prompt to standard error with an appended suffix
+/// indicating the possible responses and interprets user input.
 ///
 /// Returns true or false depending on whether or not the user confirmed
 /// the prompt.
-///
-/// The prompt is repeated until valid input is read (`EOF` is not considered
-/// valid).
 #[macro_export]
 macro_rules! confirm {
     ($($arg:tt)*) => {{
@@ -127,12 +121,12 @@ macro_rules! confirm {
         use ::std::format_args;
 
         let result: Result<bool> = loop {
-            let input = input!(
+            let input_res = input!(
                 "{} [y/n] ",
                 format_args!($($arg)*)
             );
 
-            let line = match input {
+            let line = match input_res {
                 Ok(l) => l,
                 Err(e) => break Result::Err(e)
             };
@@ -152,28 +146,22 @@ pub type Error = io::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// XXX: repeats prompt until user inputs (possible empty) line (refuses EOF)
+/// XXX: shows prompt on stderr and reads line non-empty (refuses EOF)
+/// prints a newline on stderr if EOF is received (further IO is on next line)
 ///   line is returned without trailing newline
 pub fn get_line(prompt: fmt::Arguments) -> Result<String> {
-    // Repeat until valid input is read.
-    Ok(loop {
-        eprint!("{prompt}");
+    eprint!("{prompt}");
 
-        let mut line = match read_line() {
-            Ok(l) => l,
+    let mut line = read_line().or_else(|e| {
+        // Simulate a newline if the user closed the stream.
+        if e.kind() == UnexpectedEof { eprintln!() };
+        Err(e)
+    })?;
 
-            Err(e) => {
-                // Simulate a newline if the user closed the stream.
-                if e.kind() == UnexpectedEof { eprintln!() };
-                return Err(e);
-            }
-        };
-
-        // Remove the trailing newline entered by the user. `read_line()` always
-        // returns a non-empty `String` so this must succeed.
-        line.pop();
-        break line;
-    })
+    // Remove the trailing newline entered by the user. `read_line()` always
+    // returns a non-empty `String` so this must succeed.
+    line.pop();
+    Ok(line)
 }
 
 /// XXX: reads stdin until EOF
