@@ -36,27 +36,30 @@ pub enum Error {
     Environment(env::Error),
     ReadingInput(user_io::Error),
     InputPw(input_pw::Error),
-    ReadingStdin(user_io::Error),
+
     ReadingHeader(crypt::header::Error),
     WritingHeader(crypt::header::Error),
     Crypt(crypt::Error),
+    OpeningFile(file::Error, file::Mode, SafePath),
+    ReadingStdin(user_io::Error),
     FileSerial(serial::Error),
     InputSerial(serial::Error),
+
     FindingRecord(find::Error),
     /// name of the record, and the group to which it is added
     AddingRecord(record::Error, String, String),
     SerialisingRecord(serial::Error),
+
     Clipboard(clip::Error),
     SecuringMemory(proc::Error),
     ExposingMemory(proc::Error),
     StartingProcess(proc::Error),
 
     RecoveringBackup(backup::Error, SafePath),
-    OpeningFile(file::Error, file::Mode, SafePath),
     MakingBackup(file::Error, SafePath),
+    ClearingFile(file::Error),
     RemovingFile(file::Error, SafePath),
     RemovingBackup(file::Error, SafePath),
-    ClearingFile(file::Error)
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -75,7 +78,7 @@ pub enum Advice {
     RemovingFile,
     InvalidFile,
     IncorrectPassword,
-    SerialFormat
+    InvalidInput
 }
 
 impl Error {
@@ -101,38 +104,36 @@ impl Error {
     pub fn advice(&self) -> Option<Advice> {
         use Error::*;
         use env::Error::*;
-        use backup::Error::RemovalRefusal;
+        use backup::Error::{RemovalRefusal, File, Removal};
         use crypt::Error::DecryptingBlock;
 
-        use file::Mode;
+        use file::Mode::CreateWrite;
 
-        use io::ErrorKind as IoError;
+        use io::ErrorKind::{UnexpectedEof, NotFound};
 
         Some(match self {
             Environment(ParsingArgs(..)) =>
                 Advice::ViewingUsage,
             Environment(ResolvingDataPath(..)) =>
                 Advice::SpecifyingFile,
-            ReadingHeader(e) if e.kind() == IoError::UnexpectedEof =>
+            ReadingHeader(e) if e.kind() == UnexpectedEof =>
                 Advice::InvalidFile,
             Crypt(DecryptingBlock) =>
                 Advice::IncorrectPassword,
             FileSerial(..) =>
                 Advice::InvalidFile,
             InputSerial(..) =>
-                Advice::SerialFormat,
+                Advice::InvalidInput,
 
             RecoveringBackup(RemovalRefusal, ..) =>
                 Advice::MovingBackup,
-            RecoveringBackup(..) =>
+            RecoveringBackup(File(e) | Removal(e), ..) if e.kind() != NotFound =>
                 Advice::RecoveringBackup,
-            OpeningFile(e, ..)
-            if e.kind() == IoError::NotFound =>
-                Advice::CreatingFile,
-            OpeningFile(e, Mode::CreateWrite, ..)
-            if e.kind() == IoError::NotFound =>
+            OpeningFile(_, CreateWrite, ..) =>
                 Advice::SpecifyingFile,
-            RemovingFile(..) =>
+            OpeningFile(e, ..) if e.kind() == NotFound =>
+                Advice::CreatingFile,
+            RemovingFile(e, ..) if e.kind() != NotFound =>
                 Advice::RemovingFile,
             RemovingBackup(..) =>
                 Advice::RemovingBackup,
@@ -154,24 +155,33 @@ impl Display for Error {
                 write!(f, "{e}"),
             InputPw(e) =>
                 write!(f, "{e}"),
-            ReadingStdin(e) =>
-                write!(f, "cannot read stdin: {e}"),
+
             ReadingHeader(e) =>
                 write!(f, "cannot read file header: {e}"),
             WritingHeader(e) =>
                 write!(f, "cannot write header to file: {e}"),
             Crypt(e) =>
                 write!(f, "{e}"),
+            OpeningFile(e, mode, p) => match mode {
+                Mode::CreateWrite =>
+                    write!(f, "cannot create '{}': {e}", p.display()),
+                _ =>
+                    write!(f, "cannot open '{}': {e}", p.display())
+            }
+            ReadingStdin(e) =>
+                write!(f, "cannot read stdin: {e}"),
             FileSerial(e) =>
                 write!(f, "invalid file contents: {e}"),
             InputSerial(e) =>
                 write!(f, "invalid input: {e}"),
+
             FindingRecord(e) =>
                 write!(f, "{e}"),
             AddingRecord(e, name, dest) =>
                 write!(f, "cannot create '{name}' in '{dest}': {e}"),
             SerialisingRecord(e) =>
                 write!(f, "{e}"),
+
             Clipboard(e) =>
                 write!(f, "{e}"),
             SecuringMemory(e) =>
@@ -183,20 +193,14 @@ impl Display for Error {
 
             RecoveringBackup(e, p) =>
                 write!(f, "cannot recover backup '{}': {e}", p.backup.display()),
-            OpeningFile(e, mode, p) => match mode {
-                Mode::CreateWrite =>
-                    write!(f, "cannot create '{}': {e}", p.display()),
-                _ =>
-                    write!(f, "cannot open '{}': {e}", p.display())
-            }
             MakingBackup(e, p) =>
                 write!(f, "cannot backup '{}': {e}", p.display()),
+            ClearingFile(e) =>
+                write!(f, "cannot clear pass file: {e}"),
             RemovingFile(e, p) =>
                 write!(f, "cannot recover backup '{}': {e}", p.backup.display()),
             RemovingBackup(e, p) =>
-                write!(f, "cannot remove backup '{}': {e}", p.backup.display()),
-            ClearingFile(e) =>
-                write!(f, "cannot clear pass file: {e}"),
+                write!(f, "cannot remove backup '{}': {e}", p.backup.display())
         }
     }
 }
@@ -264,11 +268,11 @@ impl Display for Advice {
                 write!(f, "Rename or move the backup file to continue anyway."),
             InvalidFile =>
                 write!(f, "The pass file may be invalid."),
+            InvalidInput =>
+                // TODO: point to ron documentation/examples or something
+                write!(f, "The input format might be invalid."),
             IncorrectPassword =>
-                write!(f, "The entered password may be incorrect."),
-            SerialFormat =>
-                // TODO: point to documentation/examples or something
-                write!(f, "find out how `ron` works and utf-8")
+                write!(f, "The entered password may be incorrect.")
         }
     }
 }
