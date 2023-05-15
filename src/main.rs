@@ -108,8 +108,10 @@ impl ReadCmd {
             Clip(path, mk, time) => {
                 // It doesn't matter if this is the parent or child process,
                 // because it is about to exit without further effects.
-                let _ = ClipTarget::new(path, mk, time)
-                    .clip(&data)?;
+                let (_, result) = ClipTarget::new(path, mk, time)
+                    .clip(&data);
+
+                result?;
             }
 
             List(opt_paths, mk) => match opt_paths {
@@ -137,17 +139,17 @@ impl ChangeCmd {
         use backup::Error::File as RecoverError;
         use ChangeCmd::*;
         use tui::{Tui, Status};
-        use tui::Status::{Stopped, Clipped};
 
         let (mut file, path) = open(Mode::ReadWrite, path)?;
         let (serial, pw) = decrypt(&mut file)?;
+        let mut proc_is_child = false;
 
         if let Err(e) = path.make_backup() {
             return Err(Error::MakingBackup(e, path));
         }
 
         // TODO: use `try` blocks once available
-        let result = move || -> Result<Status> {
+        let result = || -> Result<()> {
             match self {
                 Modify(config) => {
                     let data = Secret::new(serial::parse(&serial)?);
@@ -157,8 +159,13 @@ impl ChangeCmd {
 
                     // TODO: maybe launch this in separate proc/thread so we can
                     // catch ctrl-c and exit cleanly
-                    tui.run(&data)?;
+                    let result = tui.run(&data);
 
+                    if tui.status() == Status::Clipped {
+                        proc_is_child = true;
+                    }
+
+                    // This code won't be executed if `result` is `Err`.
                     if tui.should_save_data() {
                         let new_serial = Secret::new(
                             serial::bytes_from(data)
@@ -171,7 +178,7 @@ impl ChangeCmd {
                         })?;
                     }
 
-                    Ok(tui.status())
+                    result
                 }
 
                 ChangePassword => {
@@ -185,15 +192,17 @@ impl ChangeCmd {
                         )
                     })?;
 
-                    Ok(Stopped)
+                    Ok(())
                 }
             }
         }();
 
-        match &result {
-            // The main process will take care of the backup.
-            Ok(Clipped) => (),
+        // The parent process will take care of the backup.
+        if proc_is_child {
+            return result;
+        }
 
+        match &result {
             Ok(_) => if let Err(e) = path.remove_backup() {
                 Error::RemovingBackup(e, path).warn_full();
             }
@@ -203,7 +212,7 @@ impl ChangeCmd {
             }
         }
 
-        result.map(|_| ())
+        Ok(())
     }
 }
 

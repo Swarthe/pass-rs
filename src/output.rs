@@ -27,6 +27,16 @@ pub struct ClipTarget {
     time: Duration
 }
 
+/// a result-like type that carries extra information on whether the process is
+/// a child or a parent, if it was forked
+///
+/// This allows us to track what kind of process this is, even if the result is
+/// an `Err`.
+///
+/// if .0 is None, then the process was not forked
+/// if .0 is Some(p), then p determines whether or not process is forked
+pub type ResultForked = (Option<Process>, Result<()>);
+
 impl PrintTarget {
     pub fn new(paths: Vec<RecordPath>, mk: MatchKind) -> Self {
         Self { paths, mk }
@@ -68,10 +78,16 @@ impl ClipTarget {
     /// Forks the process into a parent a child, the latter of which is
     /// responsible for preserving the clipboard. See [`clip_timed`] for more
     /// details.
-    pub fn clip(self, data: &Node<Record>) -> Result<Process> {
-        let item = self.path.find_item_or_default_in(data, self.mk)?;
-        let item = item.borrow();
+    pub fn clip(self, data: &Node<Record>) -> ResultForked {
+        let item_result = self.path
+            .find_item_or_default_in(data, self.mk);
 
+        let item = match item_result {
+            Ok(i) => i,
+            Err(e) => return (None, Err(e.into()))
+        };
+
+        let item = item.borrow();
         let value = item.value();
 
         clip_timed(value, self.time)
@@ -88,31 +104,41 @@ impl ClipTarget {
 /// Returns a value indicating whether the current process is the child or
 /// parent. An expected usage pattern is to immediately end the child process
 /// without it performing any IO.
-pub fn clip_timed(text: &str, time: Duration) -> Result<Process> {
-    use crate::with_secured_mem;
+pub fn clip_timed(text: &str, time: Duration) -> ResultForked {
     use clip::Clipboard;
 
     // SAFETY: Forking the process is completely safe because ours is
     // single-threaded.
-    let proc = unsafe {
+    let proc_result = unsafe {
         // Since we will not modify memory allocated by the parent process, the
         // kernel should be able to apply COW optimisations, allowing for a low
         // performance penalty.
         proc::fork()
-    }.map_err(Error::StartingProcess)?;
+    };
+
+    let proc = match proc_result {
+        Ok(p) => p,
+        Err(e) => return (None, Err(Error::StartingProcess(e)))
+    };
 
     if proc == Process::Child {
-        // The child process does not inherit the parent's memory protections,
-        // so they must be reapplied.
-        with_secured_mem(|| {
-            let mut clip = Clipboard::new()?;
-            clip.hold(text, time)?;
+        // TODO: use `try` blocks once available
+        let result = (|| -> Result<()> {
+            // The child process does not inherit the parent's memory
+            // protections, so they must be reapplied.
+            proc::secure_mem()
+                .map_err(Error::SecuringMemory)?;
+
+            Clipboard::new()?
+                .hold(text, time)?;
 
             Ok(())
-        })?;
-    }
+        })();
 
-    Ok(proc)
+        (Some(proc), result.map_err(Error::from))
+    } else {
+        (Some(proc), Ok(()))
+    }
 }
 
 /// Applies 'f' to each element of `paths` and prints the result separated with

@@ -16,8 +16,8 @@ use crate::util::secret::Erase;
 
 use crate::util::{
     record::{Record, Group, Node, Ir},
-    proc::Process,
-    secret::Secret
+    secret::Secret,
+    proc::Process
 };
 
 use std::{io, mem, fmt};
@@ -174,13 +174,17 @@ impl ReadCmd {
                 .print_values(data),
 
             Clip(path) => {
-                let proc = ClipTarget::new(path, match_kind, clip_time)
-                    .clip(data)?;
+                let result_forked = ClipTarget::new(path, match_kind, clip_time)
+                    .clip(data);
 
-                // The clipboard should exit immediately without performing IO.
-                if proc == Process::Child {
+                let (opt_proc, result) = result_forked;
+
+                //// The clipboard should exit immediately without performing IO.
+                if let Some(Process::Child) = opt_proc {
                     tui.status = Clipped;
                 }
+
+                return result;
             }
 
             List(opt_paths) => match opt_paths {
