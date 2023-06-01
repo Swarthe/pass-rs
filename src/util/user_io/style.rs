@@ -1,68 +1,97 @@
-// TODO: use owo-colors to remove unnecessary allocations (and name leakage)
-//  add relevant security comments (no leakage) when done
-//  (still check if color is supported tho)
-//  use `set_override` if not done by default
+use once_cell::sync::Lazy;
 
-use colored::ColoredString;
+use owo_colors::AnsiColors;
 
-pub trait Style {
-    /// XXX: does nothing if colour is unsupported
-    /// - `NO_COLOR` env variable
-    /// - unsupported terminal
-    fn style(&self, style: MsgStyle) -> ColoredString;
+use std::{env, fmt};
 
-    fn as_error(&self) -> ColoredString {
-        self.style(MsgStyle::Error)
+use std::fmt::Display;
+
+/// Support the [`NO_COLOR`](https://no-color.org/) convention.
+static NO_STYLE: Lazy<bool> = Lazy::new(||
+    env::var_os("NO_COLOR").is_some()
+);
+
+/// returns from the calling function with the passed parameter in a plain
+/// (unstyled) `StyledMsg` object, if `NO_STYLE` is true.
+macro_rules! return_if_no_style {
+    ($msg:expr) => {{
+        if *NO_STYLE {
+            return StyledMsg {
+                msg: $msg,
+                style: owo_colors::Style::new()
+            }
+        }
+    }}
+}
+
+/// XXX: does nothing if `NO_COLOR` is set
+///
+/// the implementation for `str` performs no heap allocations, and doesn't copy
+/// the styled string. it is therefore usable for sensitive strings.
+pub trait Style: Display {
+    fn as_error(&self) -> StyledMsg<&Self> {
+        return_if_no_style!(self);
+        StyledMsg::new(self, AnsiColors::BrightRed)
     }
 
-    fn as_warning(&self) -> ColoredString {
-        self.style(MsgStyle::Warning)
+    fn as_warning(&self) -> StyledMsg<&Self> {
+        return_if_no_style!(self);
+        StyledMsg::new(self, AnsiColors::Yellow)
     }
 
-    fn as_notice(&self) -> ColoredString {
-        self.style(MsgStyle::Notice)
+    fn as_notice(&self) -> StyledMsg<&Self> {
+        return_if_no_style!(self);
+        StyledMsg::new(self, AnsiColors::Blue)
     }
 
-    fn as_prompt(&self) -> ColoredString {
-        self.style(MsgStyle::Prompt)
+    fn as_prompt(&self) -> StyledMsg<&Self> {
+        return_if_no_style!(self);
+        StyledMsg::new(self, AnsiColors::Cyan)
     }
 
-    fn as_title(&self) -> ColoredString {
-        self.style(MsgStyle::Title)
+    fn as_title(&self) -> StyledMsg<&Self> {
+        return_if_no_style!(self);
+        StyledMsg::new(self, AnsiColors::Green)
     }
 
-    fn as_heading(&self) -> ColoredString {
-        self.style(MsgStyle::Heading)
+    fn as_heading(&self) -> StyledMsg<&Self> {
+        return_if_no_style!(self);
+        StyledMsg::new(self, AnsiColors::BrightMagenta)
     }
 
-    fn as_name(&self) -> ColoredString {
-        self.style(MsgStyle::Name)
+    fn as_name(&self) -> StyledMsg<&Self> {
+        return_if_no_style!(self);
+
+        StyledMsg {
+            msg: self,
+            style: owo_colors::Style::new().bold()
+        }
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum MsgStyle {
-    Error,
-    Warning,
-    Notice,
-    Prompt,
-    Title,
-    Heading,
-    Name
+impl Style for str {}
+
+// we cannot use `owo_colors::Styled` because it can only be created as a double
+// reference (e.g. `Styled<&&str>`), which upsets the borrow checker when we try
+// to return it.
+pub struct StyledMsg<M> {
+    msg: M,
+    style: owo_colors::Style
 }
 
-impl Style for str {
-    fn style(&self, style: MsgStyle) -> ColoredString {
-        use colored::Colorize;
+impl<M: Display> StyledMsg<M> {
+    fn new(msg: M, colour: AnsiColors) -> Self {
+        let style = owo_colors::Style::new()
+            .bold().color(colour);
 
-        match style {
-            MsgStyle::Error   => self.bright_red(),
-            MsgStyle::Warning => self.yellow(),
-            MsgStyle::Notice  => self.blue(),
-            MsgStyle::Prompt  => self.cyan(),
-            MsgStyle::Title   => self.green(),
-            MsgStyle::Heading => self.bright_magenta(),
-            MsgStyle::Name    => ColoredString::from(self),
-        }.bold()
+        Self { msg, style }
+    }
+}
+
+impl<M: Display> Display for StyledMsg<M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use owo_colors::OwoColorize;
+
+        write!(f, "{}", self.msg.style(self.style))
     }
 }

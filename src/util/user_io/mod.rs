@@ -16,25 +16,21 @@ use std::{
 
 pub mod style;
 
-pub use style::{Style, MsgStyle};
-
-// TODO: use new `macro` syntax with proper namespacing when available
+pub use style::Style;
 
 /// Prints a formatted message to standard error with a newline, as an error.
 #[macro_export]
 macro_rules! err {
     ($($arg:tt)*) => {{
         use $crate::util::user_io::Style;
-
-        use ::std::eprintln;
-        use ::std::format_args;
+        use ::std::{eprintln, format_args};
 
         eprintln!(
             "{} {}",
-            Style::as_error("error:"),
+            "error:".as_error(),
             format_args!($($arg)*)
         );
-    }};
+    }}
 }
 
 /// Prints a formatted message to standard error with a newline, as a warning.
@@ -42,16 +38,14 @@ macro_rules! err {
 macro_rules! warn {
     ($($arg:tt)*) => {{
         use $crate::util::user_io::Style;
-
-        use ::std::eprintln;
-        use ::std::format_args;
+        use ::std::{eprintln, format_args};
 
         eprintln!(
             "{} {}",
-            Style::as_warning("warning:"),
+            "warning:".as_warning(),
             format_args!($($arg)*)
         );
-    }};
+    }}
 }
 
 /// Prints a formatted message to standard error with a newline, as a notice.
@@ -59,16 +53,14 @@ macro_rules! warn {
 macro_rules! info {
     ($($arg:tt)*) => {{
         use $crate::util::user_io::Style;
-
-        use ::std::eprintln;
-        use ::std::format_args;
+        use ::std::{eprintln, format_args};
 
         eprintln!(
             "{} {}",
-            Style::as_notice("notice:"),
+            "notice:".as_notice(),
             format_args!($($arg)*)
         );
-    }};
+    }}
 }
 
 /// Reads input from the user.
@@ -89,7 +81,7 @@ macro_rules! input {
 
         get_line(format_args!(
             "{} ",
-            Style::as_prompt(">"),
+            ">".as_prompt(),
         ))
     }};
 
@@ -101,10 +93,10 @@ macro_rules! input {
 
         get_line(format_args!(
             "{} {}",
-            Style::as_prompt("::"),
+            "::".as_prompt(),
             format_args!($($arg)*)
         ))
-    }};
+    }}
 }
 
 /// Displays a formatted prompt to standard error with an appended suffix
@@ -139,7 +131,7 @@ macro_rules! confirm {
         };
 
         result
-    }};
+    }}
 }
 
 pub type Error = io::Error;
