@@ -1,5 +1,5 @@
 [package]
-name = "pass-rs"
+name = "passers"
 description = "A secure encrypted data manager"
 version = "0.1.0"
 license = "GPL-3.0-or-later"
