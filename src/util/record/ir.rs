@@ -75,12 +75,12 @@ impl Ir {
 
     pub fn from_str(s: &str) -> Result<Self> {
         ron::from_str(s)
-            .map_err(Error::Deserialisation)
+            .map_err(|e| Error::Deserialisation(Box::new(e)))
     }
 
     pub fn to_string(&self) -> Result<String> {
         ron::to_string(self)
-            .map_err(Error::Serialisation)
+            .map_err(|e| Error::Serialisation(Box::new(e)))
     }
 }
 
@@ -131,7 +131,7 @@ impl Display for Ir {
         // string and requires erasing it
         let serial = Secret::new(
             ron::ser::to_string_pretty(self, conf)
-                .map_err(Error::Serialisation)
+                .map_err(|e| Error::Serialisation(Box::new(e)))
                 .unwrap()
         );
 

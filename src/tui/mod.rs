@@ -395,7 +395,7 @@ fn insert(mut rec: Node<Record>, group: &Node<Group>) -> Result {
 
         rec.erase();
 
-        Error::AddingRecord(e, name, clone_name(&group))
+        Error::AddingRecord(e, name, clone_name(group))
     })
 }
 

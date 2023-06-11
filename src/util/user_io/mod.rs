@@ -144,10 +144,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub fn get_line(prompt: fmt::Arguments) -> Result<String> {
     eprint!("{prompt}");
 
-    let mut line = read_line().or_else(|e| {
+    let mut line = read_line().map_err(|e| {
         // Simulate a newline if the user closed the stream.
         if e.kind() == UnexpectedEof { eprintln!() };
-        Err(e)
+
+        e
     })?;
 
     // Remove the trailing newline entered by the user. `read_line()` always

@@ -173,7 +173,7 @@ impl ChangeCmd {
                         );
 
                         over_encrypt(&new_serial, file, |head| {
-                            Key::from_password(pw, &head)
+                            Key::from_password(pw, head)
                                 .map_err(input_pw::Error::GeneratingKey)
                         })?;
                     }
@@ -186,7 +186,7 @@ impl ChangeCmd {
 
                     over_encrypt(&serial, file, |head| {
                         input_pw::confirm_to_key(
-                            &head,
+                            head,
                             "New password: ",
                             "Confirm password: "
                         )
@@ -244,7 +244,7 @@ impl CreateCmd {
 
             over_encrypt(serial.as_bytes(), file, |head| {
                 input_pw::confirm_to_key(
-                    &head,
+                    head,
                     "Password: ",
                     "Confirm password: "
                 )

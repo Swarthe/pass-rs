@@ -49,8 +49,9 @@ pub struct Metadata {
 
 #[derive(Debug)]
 pub enum Error {
-    Serialisation(ron::error::Error),
-    Deserialisation(ron::error::SpannedError),
+    // Clippy recommends that we box this (very large) error.
+    Serialisation(Box<ron::error::Error>),
+    Deserialisation(Box<ron::error::SpannedError>),
     NotFound,
     MultipleMatches,
     AlreadyExists,
