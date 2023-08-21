@@ -16,6 +16,21 @@ Notable features include:
 
 ## Installation
 
+### With Cargo
+
+To install and update:
+```
+cargo install passers
+```
+
+To uninstall:
+```
+cargo uninstall passers
+```
+
+### Manual
+
+To install:
 ```
 git clone https://github.com/Swarthe/pass-rs
 cd pass-rs
@@ -24,7 +39,7 @@ make && sudo make install
 
 To update:
 ````
-git pull origin
+git pull
 make && sudo make install
 ````
 
