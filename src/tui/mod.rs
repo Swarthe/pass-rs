@@ -2,7 +2,7 @@ mod cmd;
 
 use Status::{Running, Stopped, Aborted, Clipped};
 
-use cmd::{Cmd, ReadCmd, EditCmd, MetaCmd, OptVal};
+use cmd::{Cmd, ReadCmd, EditCmd, MetaCmd, SplitPath, OptVal};
 
 use crate::{input, err, info};
 
@@ -251,9 +251,9 @@ impl EditCmd {
                 err!("unimplemented: '{src}', '{dest}'");
             }
 
-            CreateItem { dests_names } => for (dest, name) in dests_names {
+            CreateItem { paths } => for SplitPath { group, name } in paths {
                 let parent = unwrap_continue!(
-                    dest.find_group_in(data, match_kind)
+                    group.find_group_in(data, match_kind)
                 );
 
                 info!("Creating item '{name}' in '{}'", parent.borrow().name());
@@ -272,9 +272,9 @@ impl EditCmd {
                 unwrap_continue!(insert(item, &parent));
             }
 
-            CreateGroup { dests_names } => for (dest, name) in dests_names {
+            CreateGroup { paths } => for SplitPath { group, name } in paths {
                 let parent = unwrap_continue!(
-                    dest.find_group_in(data, match_kind)
+                    group.find_group_in(data, match_kind)
                 );
 
                 info!("Creating group '{name}' in '{}'", parent.borrow().name());

@@ -32,9 +32,9 @@ pub enum EditCmd {
     Move { src: RecordPath, dest: RecordPath },   // XXX: also used for renaming, possible also root
     Copy { src: RecordPath, dest: RecordPath },
     // Group operations.
-    CreateGroup { dests_names: Vec<(RecordPath, String)> },
+    CreateGroup { paths: Vec<SplitPath> },
     // Item operations
-    CreateItem { dests_names: Vec<(RecordPath, String)> },  // XXX: this and changevalue
+    CreateItem { paths: Vec<SplitPath> },  // XXX: this and changevalue
                                                     // accept whitespace escapes
                                                     // (multiline values) for input
     ChangeValue { paths: Vec<RecordPath> },
@@ -50,6 +50,14 @@ pub enum MetaCmd {
     Exit,
     /// Exiting the TUI without saving.
     Abort
+}
+
+/// A `RecordPath` split into its parent group and its name.
+///
+/// `name` is guaranteed not to contain any delimiters (valid record name)
+pub struct SplitPath {
+    pub group: RecordPath,
+    pub name: String
 }
 
 #[derive(Clone, Copy)]
@@ -103,7 +111,7 @@ impl Cmd {
             Ok(None)
         } else {
             Ok(Some(Self::from_parts(
-                CmdVerb::from_str(words.remove(0))?,
+                CmdVerb::from_str(&words.remove(0))?,
                 words
             )?))
         }
@@ -141,7 +149,7 @@ impl Cmd {
             Abort => Meta(MetaCmd::Abort),
             ShowConfig => Meta(MetaCmd::ShowConfig),
 
-            Clip => Read(ReadCmd::Clip(into_next(args))),
+            Clip => Read(ReadCmd::Clip(next_into(args))),
             ChangeValue => Edit(EditCmd::ChangeValue { paths: into_collect(args) }),
             Show => Read(ReadCmd::Show(into_collect(args))),
             Remove => Edit(EditCmd::Remove { paths: into_collect(args) }),
@@ -149,10 +157,10 @@ impl Cmd {
             // By splitting the name from a path element, we guarantee that it
             // is valid as a new record name (doesn't contain separators).
             CreateGroup => Edit(EditCmd::CreateGroup {
-                dests_names: split_each_name(args.map(RecordPath::from))?
+                paths: split_each(args.map(RecordPath::from))?
             }),
             CreateItem => Edit(EditCmd::CreateItem {
-                dests_names: split_each_name(args.map(RecordPath::from))?
+                paths: split_each(args.map(RecordPath::from))?
             }),
 
             List => Read(ReadCmd::List(match have_args {
@@ -165,23 +173,23 @@ impl Cmd {
             })),
             ShowUsage => Meta(MetaCmd::ShowUsage(match have_args {
                 true => Some(
-                    args.map(CmdVerb::from_str)
+                    args.map(|a| CmdVerb::from_str(&a))
                         .collect::<Result<Vec<_>>>()?
                 ),
                 false => None,
             })),
 
             Move => Edit(EditCmd::Move {
-                src: into_next(&mut args),
-                dest: into_next(&mut args)
+                src: next_into(&mut args),
+                dest: next_into(&mut args)
             }),
             Copy => Edit(EditCmd::Copy {
-                src: into_next(&mut args),
-                dest: into_next(&mut args)
+                src: next_into(&mut args),
+                dest: next_into(&mut args)
             }),
             SetOption => Meta(MetaCmd::SetOpt(OptVal::new(
-                into_next(&mut args),
-                into_next(&mut args),
+                next_into(&mut args),
+                next_into(&mut args),
             )?))
         })
     }
@@ -206,10 +214,10 @@ impl OptVal {
 }
 
 impl CmdVerb {
-    fn from_str<S: AsRef<str>>(s: S) -> Result<Self> {
+    fn from_str(s: &str) -> Result<Self> {
         use CmdVerb::*;
 
-        Ok(match s.as_ref() {
+        Ok(match s {
             "sh" | "show" => Show,
             "cl" | "clip" => Clip,
             "ls" | "list" => List,
@@ -266,11 +274,7 @@ impl CmdVerb {
     }
 }
 
-/// splits each path of `paths` into the leading path and the trailing name
-///
-/// the trailing returned strings are guaranteed to be a valid record name
-/// without path delimiters
-fn split_each_name<I>(paths: I) -> Result<Vec<(RecordPath, String)>>
+fn split_each<I>(paths: I) -> Result<Vec<SplitPath>>
     where
         I: Iterator<Item = RecordPath>
 {
@@ -281,7 +285,10 @@ fn split_each_name<I>(paths: I) -> Result<Vec<(RecordPath, String)>>
             .split_last()
             .map_err(Error::InvalidName)?;
 
-        Ok((leading, trailing.into_inner()))
+        Ok(SplitPath {
+            group: leading,
+            name: trailing.into_inner()
+        })
     }).collect()
 }
 
@@ -293,7 +300,7 @@ fn into_collect<I, J>(iter: impl Iterator<Item = I>) -> Vec<J>
 }
 
 /// Panics XXX
-fn into_next<I, J>(mut iter: impl Iterator<Item = I>) -> J
+fn next_into<I, J>(mut iter: impl Iterator<Item = I>) -> J
     where
         I: Into<J>
 {
