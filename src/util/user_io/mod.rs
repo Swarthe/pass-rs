@@ -5,13 +5,11 @@ use nix::sys::termios::{
     LocalFlags
 };
 
-use nix::libc::STDIN_FILENO;
-
 use std::{fmt, io};
 
 use std::{
     io::ErrorKind::UnexpectedEof,
-    os::unix::io::RawFd
+    io::Stdin
 };
 
 pub mod style;
@@ -173,14 +171,14 @@ pub fn read_stdin() -> Result<String> {
 /// XXX: hides user input henceforth
 ///   useful for reading sensitive data, like passwords
 pub fn hide_input() -> Result<()> {
-    mutate_termios(STDIN_FILENO, |term| {
+    mutate_termios(io::stdin(), |term| {
         term.local_flags.remove(LocalFlags::ECHO);
     })
 }
 
 /// XXX: shows user input henceforth
 pub fn show_input() -> Result<()> {
-    mutate_termios(STDIN_FILENO, |term| {
+    mutate_termios(io::stdin(), |term| {
         term.local_flags.insert(LocalFlags::ECHO);
     })
 }
@@ -206,17 +204,17 @@ fn read_line() -> Result<String> {
 /// changes are applied immediately (`TCSANOW`)
 // We do not use a struct with Termios data because it is a global resource, and
 // may be modified through other means which we cannot control
-fn mutate_termios<O>(fd: RawFd, op: O) -> io::Result<()>
+fn mutate_termios<O>(f: Stdin, op: O) -> io::Result<()>
     where
         O: FnOnce(&mut Termios)
 {
     use termios::SetArg;
     use termios::{tcgetattr, tcsetattr};
 
-    let mut term = tcgetattr(fd)?;
+    let mut term = tcgetattr(&f)?;
 
     op(&mut term);
-    tcsetattr(fd, SetArg::TCSANOW, &term)?;
+    tcsetattr(&f, SetArg::TCSANOW, &term)?;
 
     Ok(())
 }

@@ -33,12 +33,15 @@ impl Key {
     {
         use argon2::{Config, Variant, Version};
 
+        // TODO: we want to use rfc9106 recommended defaults, but for now we'll
+        // leave it like this for simplicity. eventually we'll want to introduce
+        // a pass file versioning scheme
         let hash_conf = Config {
             variant: Variant::Argon2id,
             version: Version::Version13,
             hash_length: Self::LEN as u32,
             mem_cost: 0x800,    // The default causes a crash on debug.
-            ..Default::default()
+            ..Config::original()
         };
 
         let result = argon2::hash_raw(
